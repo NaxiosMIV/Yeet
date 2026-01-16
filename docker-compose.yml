@@ -19,7 +19,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://user:password@db/yeet_db
+      - DATABASE_URL=postgresql://user:password@db/yeet_db
     depends_on:
       - db
     volumes:
