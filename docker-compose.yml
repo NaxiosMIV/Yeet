@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: yeet_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://user:password@db/yeet_db
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: word-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com # 로그인용 이메일
+      PGADMIN_DEFAULT_PASSWORD: admin # 로그인용 비번
+    ports:
+      - "8080:80" # 브라우저에서 서버IP:8080으로 접속
+    depends_on:
+      - db
+volumes:
+  postgres_data:
