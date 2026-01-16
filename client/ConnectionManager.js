@@ -1,3 +1,5 @@
+import { renderCanvas } from "./RenderCanvas.js";
+
 const startScreen = document.getElementById("start-screen");
 const gameScreen = document.getElementById("game-ui");
 
@@ -54,15 +56,20 @@ function joinGame(room, name) {
   startScreen.classList.add("hidden");
   gameScreen.classList.remove("hidden");
 
-  document.getElementById("room").textContent = room;
-
   const protocol = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(
     `${protocol}://${location.host}/ws?room=${room}&name=${name}`
   );
 
   ws.onmessage = (e) => {
-    document.getElementById("state").textContent =
-      JSON.stringify(JSON.parse(e.data), null, 2);
+    const data = JSON.parse(e.data);
+    console.log(data);
+    if (!data.state) return; // safety check
+    const state = data.state;
+
+    const boardData = state.board; // array of {x, y, letter}
+    const boardSize = 15; // or calculate dynamically if needed
+    
+    renderCanvas(boardData, 15);
   };
 }

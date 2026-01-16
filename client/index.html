@@ -38,63 +38,70 @@
 <body class="font-body bg-slate-100 dark:bg-slate-950 min-h-screen">
 
 <!-- ================= START SCREEN ================= -->
+<body class="font-body bg-slate-100 dark:bg-slate-950 min-h-screen overflow-hidden">
+
 <div id="start-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-indigo-50 to-white dark:from-slate-900 dark:to-slate-950">
   <div class="bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-2xl w-full max-w-md">
-
     <div class="text-center mb-6">
       <h1 class="text-3xl font-display font-bold">🎮 WordCraft</h1>
       <p class="text-slate-500 mt-1">A modern word game experience</p>
     </div>
 
     <label class="block text-sm font-semibold mb-1">Your Name</label>
-    <input id="nameInput" class="w-full mb-4 rounded-xl p-3 bg-slate-100 dark:bg-slate-800" placeholder="Enter your name…" />
+    <input id="nameInput" class="w-full mb-4 rounded-xl p-3 bg-slate-100 dark:bg-slate-800 border-none focus:ring-2 focus:ring-primary outline-none" placeholder="Enter your name…" />
 
     <div class="flex gap-2 mb-4">
       <button id="createTab" class="flex-1 bg-primary text-white rounded-xl py-2 font-semibold">＋ Create Room</button>
       <button id="joinTab" class="flex-1 bg-slate-200 dark:bg-slate-800 rounded-xl py-2">→ Join Room</button>
     </div>
 
-    <div id="joinBox" class="hidden">
+    <div id="joinBox" class="hidden mb-4">
       <label class="block text-sm font-semibold mb-2">Room Code</label>
-      <input id="roomInput" class="w-full rounded-xl p-3 bg-slate-100 dark:bg-slate-800" placeholder="Enter room code…" />
+      <input id="roomInput" class="w-full rounded-xl p-3 bg-slate-100 dark:bg-slate-800 border-none focus:ring-2 focus:ring-primary outline-none" placeholder="Enter room code…" />
     </div>
 
-    <button id="startBtn" class="w-full bg-primary text-white py-3 rounded-xl font-bold">
-      Start
+    <button id="startBtn" class="w-full bg-primary text-white py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 dark:shadow-none hover:opacity-90 transition-opacity">
+      Start Game
     </button>
-
   </div>
 </div>
 
-<!-- ================= GAME UI ================= -->
-<div id="game-ui" class="hidden">
+<div id="game-ui" class="hidden flex-col h-screen overflow-hidden">
 
-<header class="h-16 bg-white dark:bg-slate-900 border-b flex items-center px-6">
-  <h1 class="font-display font-bold text-xl">WordMasters <span class="text-primary">Royale</span></h1>
-</header>
+  <header class="h-16 bg-white dark:bg-slate-900 border-b flex items-center px-6 shrink-0">
+    <h1 class="font-display font-bold text-xl">WordMasters <span class="text-primary">Royale</span></h1>
+  </header>
 
-<main class="flex h-[calc(100vh-64px)]">
+  <main class="flex flex-1 h-screen overflow-hidden">
 
-  <!-- Leaderboard -->
-  <aside class="w-72 border-r bg-white dark:bg-slate-900 p-6">
-    <h2 class="font-bold mb-4">Leaderboard</h2>
-    <div id="leaderboard"></div>
-  </aside>
+    <aside class="w-72 border-r bg-white dark:bg-slate-900 p-6 flex flex-col shrink-0">
+      <h2 class="font-bold mb-4">Leaderboard</h2>
+      <div id="leaderboard" class="flex-1 overflow-y-auto">
+        </div>
+    </aside>
 
-  <!-- Board -->
-  <div class="flex-1 flex justify-center items-center bg-slate-50 dark:bg-slate-950">
-    <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-xl">
-      <div id="game-board" class="grid grid-cols-15 gap-1 w-[600px] h-[600px]">
-        <!-- Board rendered by JS -->
-      </div>
+    <div class="flex-1 relative bg-slate-200">
+      <canvas id="game-canvas" class="absolute inset-0 w-full h-full"></canvas>
     </div>
-  </div>
+      
+  </main>
 
-</main>
+  <div class="absolute bottom-6 right-6 flex flex-col gap-2 z-10">
+  <button id="zoom-in" class="p-3 bg-white dark:bg-slate-800 rounded-full shadow-lg hover:bg-slate-50 active:scale-95 transition-all">
+    <span class="material-icons-round">add</span>
+  </button>
+  <button id="zoom-out" class="p-3 bg-white dark:bg-slate-800 rounded-full shadow-lg hover:bg-slate-50 active:scale-95 transition-all">
+    <span class="material-icons-round">remove</span>
+  </button>
+  <button id="reset-cam" class="p-3 bg-primary text-white rounded-full shadow-lg hover:opacity-90 active:scale-95 transition-all">
+    <span class="material-icons-round">center_focus_strong</span>
+  </button>
+</div>
 </div>
 
 <!-- ================= SCRIPT ================= -->
-<script src="/static/ConnectionManager.js"></script>
+<script type="module" src="/static/ConnectionManager.js"></script>
+<script type="module" src="/static/RenderCanvas.js"></script>
 
 </body>
 </html>
