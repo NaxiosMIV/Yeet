@@ -1,0 +1,31 @@
+.scrabble-grid {
+    display: grid;
+    grid-template-columns: repeat(15, minmax(0, 1fr));
+    gap: 4px;
+}
+
+.tile-shadow {
+    box-shadow: 0 4px 0 0 rgba(0, 0, 0, 0.1);
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.drop-target {
+    @apply ring-2 ring-primary ring-inset bg-primary/20 !important;
+}
+
+.dragging {
+    opacity: 0.5;
+}
+
+/* Perspective for board if needed */
+.board-container {
+    perspective: 1000px;
+}

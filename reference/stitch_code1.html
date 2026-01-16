@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Multiplayer Scrabble Royale</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=Lexend:wght@400;500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#6366f1",
+                        "background-light": "#f1f5f9",
+                        "background-dark": "#0f172a",
+                        "tile-peach": "#fed7aa",
+                        "tile-mint": "#bbf7d0",
+                        "tile-lavender": "#e9d5ff",
+                        "tile-blue": "#bae6fd",
+                    },
+                    fontFamily: {
+                        display: ["Lexend", "sans-serif"],
+                        body: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "12px",
+                    },
+                },
+            },
+        };
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+        }
+    </script>
+    <style>
+        .scrabble-grid {
+            display: grid;
+            grid-template-columns: repeat(15, minmax(0, 1fr));
+            gap: 4px;
+        }
+
+        .tile-shadow {
+            box-shadow: 0 4px 0 0 rgba(0, 0, 0, 0.1);
+        }
+
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+
+<body
+    class="font-body bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen transition-colors duration-300">
+    <header
+        class="h-16 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md flex items-center justify-between px-6 sticky top-0 z-50">
+        <div class="flex items-center gap-3">
+            <div
+                class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white font-display font-bold text-2xl shadow-lg shadow-primary/20">
+                W</div>
+            <h1 class="font-display font-bold text-xl tracking-tight hidden sm:block">WordMasters <span
+                    class="text-primary">Royale</span></h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <div
+                class="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-full text-sm font-semibold">
+                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                1,248 Online
+            </div>
+            <button class="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                onclick="toggleDarkMode()">
+                <span class="material-icons-round block dark:hidden text-slate-600">dark_mode</span>
+                <span class="material-icons-round hidden dark:block text-slate-300">light_mode</span>
+            </button>
+            <div
+                class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white ring-2 ring-white dark:ring-slate-700 cursor-pointer overflow-hidden">
+                <img alt="User Avatar"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuCXHVFuggukSawyV-6hISNW-IqZ36jTieSm-vECvhwMwcZI3uu5rE34cZHxaIMTwZafIGtha3o9cL44FJ5gwKEtbyAj6Nr7Jl1_LiZZTzVac9MKopre4MP52L_sy9ReSBilFhA0vl8Bam1771dmCxoGZFyjQ7I4eMpLPhbpdQOyhar9tyrcwSLmR_ShAzKovcPfyfT7Sk6h3W2GeMzZT__BrFn7GqOw_5dezdd782rwDpTVjgj2C0ZrphbqQKDq4_Ijk1DrOU6eg4Y" />
+            </div>
+        </div>
+    </header>
+    <div class="flex h-[calc(100vh-64px)] overflow-hidden">
+        <aside
+            class="w-72 border-r border-slate-200 dark:border-slate-800 flex flex-col bg-white dark:bg-slate-900 overflow-y-auto hide-scrollbar">
+            <div class="p-6">
+                <h2 class="font-display font-bold text-lg mb-4 flex items-center gap-2">
+                    <span class="material-icons-round text-yellow-500">leaderboard</span>
+                    Leaderboard
+                </h2>
+                <div class="space-y-3">
+                    <div
+                        class="flex items-center gap-3 p-3 rounded-2xl bg-primary/10 border border-primary/20 ring-2 ring-primary/30">
+                        <div class="relative">
+                            <img alt="Avatar" class="w-10 h-10 rounded-full bg-slate-200"
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCiqy5l5UUxG4kMHShc657KcogBqZshM2PdIG_k0kpqdLHosxmfjVMQUYePBGo74xDJ-A9NFGiX3lrLmwBI0NWIxPotEbmq7vU6AkFAsZLiLqxb4yQvI8LGKIutABnThQ195hT75YQlxlgPti7Kdgx1z0CySYOWPHfkPjRdJ2bXcPE28qHNn5VEtKB6-8MgcfJXMn8KFq4c0CpgAjUmKAUFlaE5nJ_yHdDGuXqVZT2-GmHi78vtheRA4hgIDhofRfbJs_Uv8X6wcxo" />
+                            <div
+                                class="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white dark:border-slate-900">
+                            </div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-sm font-bold flex items-center gap-1">You <span
+                                    class="text-[10px] bg-primary text-white px-1.5 py-0.5 rounded uppercase">Playing</span>
+                            </div>
+                            <div class="text-xs text-slate-500 dark:text-slate-400 font-medium">428 pts</div>
+                        </div>
+                        <div class="text-primary font-bold">#1</div>
+                    </div>
+                    <div class="space-y-1">
+                        <div
+                            class="flex items-center gap-3 p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group">
+                            <img alt="Avatar" class="w-10 h-10 rounded-full bg-slate-100"
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuAMXG6orx2OzMAZaXgQmQzmKFQirTEtLrKzlZrZ1HZ1Vw6d6KjlncMYftX-5o94r88MPt5b39TXBvR8KvmcEtVAUHH4ECz4nAP09Fz7B18n8_HcPkv5NfEZZrbBob2XYffLw0KG5LczQHq_56oqiWZMt45wDi4HhZ1MWUVvNdQa09fmWaqr3od2KKXddIRymq1OBRiufXML7dmsU07mpE6lPqACRKFHV--lRP6cOasZocGVEWh6fRu2wXPksMwLbTs8bKRXAS6XTBA" />
+                            <div class="flex-1">
+                                <div class="text-sm font-semibold group-hover:text-primary transition-colors">Chloe_88
+                                </div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400">385 pts</div>
+                            </div>
+                            <div class="text-slate-400 font-bold text-sm">#2</div>
+                        </div>
+                        <div
+                            class="flex items-center gap-3 p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group">
+                            <img alt="Avatar" class="w-10 h-10 rounded-full bg-slate-100"
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBg1d-b3u3n1Ti-qDD4hABPp1bdaL4fU6437un6rE80LOa2JslNKODf5Pek6r9S3yn4pnIWidjuMHYuxhxUhAW6xs5H4yykm96-zV4_HiuWHDPOW_KtcPzIHmlYOlzk5odVp_K-44r5dJSMuN-QZ4FYVYJZlqFZvlShOEisH30zi4CqGaJrIXa31HjSUaEnnHdfvZ2lTm361Uo_Vs1PDlxWHao5MccLHPG5AzX-k9u74K-ZNakpT5NxzNZrp7_DbZG-ZC_-6jsfZV8" />
+                            <div class="flex-1">
+                                <div class="text-sm font-semibold group-hover:text-primary transition-colors">JinWoo
+                                </div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400">352 pts</div>
+                            </div>
+                            <div class="text-slate-400 font-bold text-sm">#3</div>
+                        </div>
+                        <div
+                            class="flex items-center gap-3 p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group opacity-60">
+                            <img alt="Avatar" class="w-10 h-10 rounded-full bg-slate-100"
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBeGSvXcBMnFZe6U2_f0-DE7rXluv6lwXBIiEkXKaegdXzIGMu__Xgw0PLuEUowVAzN9HFqqTEUIsU8Rv2adpFTNEYKQibp6AyGPABNjGDV2x3-HdagQKxJ0FljWdvlM5dubpgKtBLOuTDlyn263J85ANJ3gfXscL0A5l9A8ImJKxF0NxhI5MXTUwV3ajo4XprIs2w4Zb_1Z-lTTPaf7eEEFXs8Pl9rpWeW0G7ZlOJxLkzWB2qD5ps57-26u8zgey5T6abrpI7mGyg" />
+                            <div class="flex-1">
+                                <div class="text-sm font-semibold">SarahLuv</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400">310 pts</div>
+                            </div>
+                            <div class="text-slate-400 font-bold text-sm">#4</div>
+                        </div>
+                        <div
+                            class="flex items-center justify-center p-4 border-t border-dashed border-slate-200 dark:border-slate-800 mt-2">
+                            <button class="text-xs font-semibold text-primary hover:underline">View 6 others...</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+        <main class="flex-1 flex flex-col relative bg-slate-50 dark:bg-slate-950 overflow-hidden">
+            <div class="flex-1 p-8 overflow-auto flex justify-center items-start scroll-smooth">
+                <div
+                    class="bg-white dark:bg-slate-900 p-6 rounded-[32px] shadow-2xl shadow-slate-200 dark:shadow-none border border-slate-200 dark:border-slate-800 relative">
+                    <div class="scrabble-grid w-[600px] h-[600px]">
+                        <script>
+                            const grid = document.querySelector('.scrabble-grid');
+                            const boardConfig = [
+                                { pos: [7, 5], letter: 'C', color: 'bg-tile-peach' },
+                                { pos: [7, 6], letter: 'H', color: 'bg-tile-peach' },
+                                { pos: [7, 7], letter: 'O', color: 'bg-tile-peach' },
+                                { pos: [7, 8], letter: 'I', color: 'bg-tile-peach' },
+                                { pos: [7, 9], letter: 'C', color: 'bg-tile-peach' },
+                                { pos: [7, 10], letter: 'E', color: 'bg-tile-peach' },
+                                // Vertical connections inspired by sketch
+                                { pos: [3, 7], letter: 'L', color: 'bg-tile-mint' },
+                                { pos: [4, 7], letter: 'O', color: 'bg-tile-mint' },
+                                { pos: [5, 7], letter: 'V', color: 'bg-tile-mint' },
+                                { pos: [6, 7], letter: 'E', color: 'bg-tile-mint' },
+                                // Another one
+                                { pos: [7, 9], letter: 'C', color: 'bg-tile-lavender' }, // intersection
+                                { pos: [8, 9], letter: 'A', color: 'bg-tile-lavender' },
+                                { pos: [9, 9], letter: 'T', color: 'bg-tile-lavender' },
+                                // Right side complex
+                                { pos: [4, 11], letter: 'W', color: 'bg-tile-blue' },
+                                { pos: [4, 12], letter: 'O', color: 'bg-tile-blue' },
+                                { pos: [4, 13], letter: 'R', color: 'bg-tile-blue' },
+                                { pos: [4, 14], letter: 'D', color: 'bg-tile-blue' },
+                            ];
+                            for (let i = 0; i < 225; i++) {
+                                const row = Math.floor(i / 15);
+                                const col = i % 15;
+                                const cell = document.createElement('div');
+                                cell.className = 'w-full aspect-square rounded-sm flex items-center justify-center text-[10px] font-bold transition-all';
+                                // Special multiplier backgrounds
+                                if (i === 112) cell.className += ' bg-pink-100 dark:bg-pink-900/30 text-pink-500'; // Center
+                                else if (i % 31 === 0) cell.className += ' bg-blue-100 dark:bg-blue-900/30 text-blue-500'; // 3W
+                                else if (i % 24 === 0) cell.className += ' bg-cyan-100 dark:bg-cyan-900/30 text-cyan-500'; // 3L
+                                else cell.className += ' bg-slate-50 dark:bg-slate-800/50';
+                                // Place Letter if matches boardConfig
+                                const tileData = boardConfig.find(b => b.pos[0] === row && b.pos[1] === col);
+                                if (tileData) {
+                                    cell.innerHTML = `
+                                        <div class="${tileData.color} w-full h-full rounded shadow-sm flex flex-col items-center justify-center text-slate-800 relative group cursor-default scale-100 hover:scale-105 transition-transform">
+                                            <span class="text-lg leading-none font-display font-extrabold">${tileData.letter}</span>
+                                            <span class="absolute bottom-0.5 right-1 text-[8px]">2</span>
+                                        </div>
+                                    `;
+                                }
+                                grid.appendChild(cell);
+                            }
+                        </script>
+                    </div>
+                </div>
+            </div>
+            <div class="absolute bottom-8 left-1/2 -translate-x-1/2 w-full max-w-xl px-4 pointer-events-none">
+                <div
+                    class="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-800 pointer-events-auto flex items-center gap-6">
+                    <div class="flex-1 flex gap-2 justify-center">
+                        <div
+                            class="w-12 h-14 bg-tile-peach rounded-xl tile-shadow flex flex-col items-center justify-center text-slate-800 relative cursor-grab active:cursor-grabbing hover:-translate-y-1 transition-transform">
+                            <span class="text-2xl font-display font-black">A</span>
+                            <span class="absolute bottom-1 right-1.5 text-[10px] font-bold">1</span>
+                        </div>
+                        <div
+                            class="w-12 h-14 bg-tile-mint rounded-xl tile-shadow flex flex-col items-center justify-center text-slate-800 relative cursor-grab active:cursor-grabbing hover:-translate-y-1 transition-transform">
+                            <span class="text-2xl font-display font-black">S</span>
+                            <span class="absolute bottom-1 right-1.5 text-[10px] font-bold">1</span>
+                        </div>
+                        <div
+                            class="w-12 h-14 bg-tile-lavender rounded-xl tile-shadow flex flex-col items-center justify-center text-slate-800 relative cursor-grab active:cursor-grabbing hover:-translate-y-1 transition-transform">
+                            <span class="text-2xl font-display font-black">P</span>
+                            <span class="absolute bottom-1 right-1.5 text-[10px] font-bold">3</span>
+                        </div>
+                        <div
+                            class="w-12 h-14 bg-tile-blue rounded-xl tile-shadow flex flex-col items-center justify-center text-slate-800 relative cursor-grab active:cursor-grabbing hover:-translate-y-1 transition-transform">
+                            <span class="text-2xl font-display font-black">L</span>
+                            <span class="absolute bottom-1 right-1.5 text-[10px] font-bold">1</span>
+                        </div>
+                        <div
+                            class="w-12 h-14 bg-tile-peach rounded-xl tile-shadow flex flex-col items-center justify-center text-slate-800 relative cursor-grab active:cursor-grabbing hover:-translate-y-1 transition-transform">
+                            <span class="text-2xl font-display font-black">Y</span>
+                            <span class="absolute bottom-1 right-1.5 text-[10px] font-bold">4</span>
+                        </div>
+                        <div
+                            class="w-12 h-14 bg-tile-mint rounded-xl tile-shadow flex flex-col items-center justify-center text-slate-800 relative cursor-grab active:cursor-grabbing hover:-translate-y-1 transition-transform">
+                            <span class="text-2xl font-display font-black">T</span>
+                            <span class="absolute bottom-1 right-1.5 text-[10px] font-bold">1</span>
+                        </div>
+                        <div
+                            class="w-12 h-14 bg-slate-200 dark:bg-slate-700 rounded-xl tile-shadow flex items-center justify-center text-slate-400 dark:text-slate-500">
+                            <span class="material-icons-round">add</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <button
+                            class="bg-primary text-white px-6 py-2 rounded-xl font-bold text-sm shadow-lg shadow-primary/30 hover:bg-indigo-600 transition-colors">PLAY</button>
+                        <div class="flex gap-2">
+                            <button
+                                class="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-400"
+                                title="Shuffle Rack">
+                                <span class="material-icons-round text-lg">shuffle</span>
+                            </button>
+                            <button
+                                class="p-2 bg-slate-100 dark:bg-slate-800 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-400"
+                                title="Recall Tiles">
+                                <span class="material-icons-round text-lg">undo</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="absolute bottom-8 right-8 flex flex-col items-end gap-3">
+                <div
+                    class="w-72 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col">
+                    <div
+                        class="p-3 bg-slate-50 dark:bg-slate-800 flex items-center justify-between border-b border-slate-200 dark:border-slate-700">
+                        <div class="flex items-center gap-2">
+                            <span class="material-icons-round text-sm text-primary">chat</span>
+                            <span class="text-xs font-bold uppercase tracking-wider">Live Activity</span>
+                        </div>
+                        <button class="text-slate-400 hover:text-slate-600">
+                            <span class="material-icons-round text-sm">close</span>
+                        </button>
+                    </div>
+                    <div class="p-3 h-48 overflow-y-auto space-y-3 text-xs hide-scrollbar">
+                        <div class="flex gap-2">
+                            <span class="font-bold text-primary">JinWoo</span>
+                            <span class="text-slate-600 dark:text-slate-400">played 'QUEST' for 42 pts!</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <span class="font-bold text-orange-500">SarahLuv</span>
+                            <span class="text-slate-600 dark:text-slate-400">Wow, nice move.</span>
+                        </div>
+                        <div class="flex gap-2 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg">
+                            <span class="font-bold">System</span>
+                            <span class="text-slate-500">Your turn ends in 1:42</span>
+                        </div>
+                    </div>
+                    <div class="p-2 flex gap-2 border-t border-slate-200 dark:border-slate-800">
+                        <input
+                            class="flex-1 text-xs bg-slate-100 dark:bg-slate-800 border-none rounded-lg focus:ring-1 focus:ring-primary dark:text-white"
+                            placeholder="Type a message..." type="text" />
+                        <button class="bg-primary p-2 rounded-lg text-white">
+                            <span class="material-icons-round text-sm">send</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+</body>
+
+</html>
