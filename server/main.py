@@ -62,9 +62,11 @@ async def websocket_endpoint(ws: WebSocket):
     try:
         while True:
             data = await ws.receive_json()
+
             # In main.py, inside the PLACE logic:
             if data["type"] == "PLACE":
                 x, y, letter = data["x"], data["y"], data["letter"]
+
                 # Check if a tile already exists at these coordinates
                 exists = any(t for t in game["board"] if t['x'] == x and t['y'] == y)
                 
