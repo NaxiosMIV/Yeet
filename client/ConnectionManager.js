@@ -1,5 +1,5 @@
 const startScreen = document.getElementById("start-screen");
-const gameScreen = document.getElementById("game-screen");
+const gameScreen = document.getElementById("game-ui");
 
 const nameInput = document.getElementById("nameInput");
 const roomInput = document.getElementById("roomInput");

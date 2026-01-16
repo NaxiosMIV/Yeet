@@ -1,47 +1,100 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="light" lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>WordCraft</title>
-  <link rel="stylesheet" href="/static/style.css" />
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#6366f1",
+          },
+          fontFamily: {
+            display: ["Lexend", "sans-serif"],
+            body: ["Inter", "sans-serif"],
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    .hidden { display: none; }
+  </style>
 </head>
-<body>
 
-  <div class="app">
+<body class="font-body bg-slate-100 dark:bg-slate-950 min-h-screen">
 
-    <header class="title">
-      <h1>🎮 WordCraft</h1>
-      <p class="subtitle">A modern word game experience</p>
-    </header>
+<!-- ================= START SCREEN ================= -->
+<div id="start-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-indigo-50 to-white dark:from-slate-900 dark:to-slate-950">
+  <div class="bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-2xl w-full max-w-md">
 
-    <!-- START SCREEN -->
-    <div id="start-screen" class="card">
-      <h3>✨ Get Started</h3>
-      <p class="hint">Enter your name and create or join a game room</p>
-
-      <label>Your Name</label>
-      <input id="nameInput" placeholder="Enter your name..." />
-
-      <div class="toggle">
-        <button id="createTab" class="active">＋ Create Room</button>
-        <button id="joinTab">→ Join Room</button>
-      </div>
-
-      <div id="joinBox" class="hidden">
-        <input id="roomInput" placeholder="Enter room code" />
-      </div>
-
-      <button id="startBtn" class="primary">＋ Create New Room</button>
+    <div class="text-center mb-6">
+      <h1 class="text-3xl font-display font-bold">🎮 WordCraft</h1>
+      <p class="text-slate-500 mt-1">A modern word game experience</p>
     </div>
 
-    <!-- GAME SCREEN -->
-    <div id="game-screen" class="hidden">
-      <h3>Room: <span id="room"></span></h3>
-      <pre id="state">Connecting…</pre>
+    <label class="block text-sm font-semibold mb-1">Your Name</label>
+    <input id="nameInput" class="w-full mb-4 rounded-xl p-3 bg-slate-100 dark:bg-slate-800" placeholder="Enter your name…" />
+
+    <div class="flex gap-2 mb-4">
+      <button id="createTab" class="flex-1 bg-primary text-white rounded-xl py-2 font-semibold">＋ Create Room</button>
+      <button id="joinTab" class="flex-1 bg-slate-200 dark:bg-slate-800 rounded-xl py-2">→ Join Room</button>
     </div>
+
+    <div id="joinBox" class="hidden">
+      <label class="block text-sm font-semibold mb-2">Room Code</label>
+      <input id="roomInput" class="w-full rounded-xl p-3 bg-slate-100 dark:bg-slate-800" placeholder="Enter room code…" />
+    </div>
+
+    <button id="startBtn" class="w-full bg-primary text-white py-3 rounded-xl font-bold">
+      Start
+    </button>
 
   </div>
+</div>
 
-  <script src="/static/game.js"></script>
+<!-- ================= GAME UI ================= -->
+<div id="game-ui" class="hidden">
+
+<header class="h-16 bg-white dark:bg-slate-900 border-b flex items-center px-6">
+  <h1 class="font-display font-bold text-xl">WordMasters <span class="text-primary">Royale</span></h1>
+</header>
+
+<main class="flex h-[calc(100vh-64px)]">
+
+  <!-- Leaderboard -->
+  <aside class="w-72 border-r bg-white dark:bg-slate-900 p-6">
+    <h2 class="font-bold mb-4">Leaderboard</h2>
+    <div id="leaderboard"></div>
+  </aside>
+
+  <!-- Board -->
+  <div class="flex-1 flex justify-center items-center bg-slate-50 dark:bg-slate-950">
+    <div class="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-xl">
+      <div id="game-board" class="grid grid-cols-15 gap-1 w-[600px] h-[600px]">
+        <!-- Board rendered by JS -->
+      </div>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<!-- ================= SCRIPT ================= -->
+<script src="/static/ConnectionManager.js"></script>
+
 </body>
 </html>
