@@ -2,10 +2,9 @@ import requests
 from bs4 import BeautifulSoup
 import json
 import os
-import string
 import time
-from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from server.core.config import WORDS_JSON_PATH, DATA_DIR
 
 def get_words_from_page(url):
     try:
@@ -40,24 +39,23 @@ def get_words_from_page(url):
 def scrape_words():
     base_url = "https://scrabble123.com/scrabble-twl-dictionary/words-with-letter-/page/{}"
     words_data = {}
-    output_path = os.path.join("data", "words.json")
-    os.makedirs("data", exist_ok=True)
     
-    # Load existing data if any to resume or just start fresh
-    if os.path.exists(output_path):
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    
+    if WORDS_JSON_PATH.exists():
         try:
-            with open(output_path, "r", encoding="utf-8") as f:
+            with open(WORDS_JSON_PATH, "r", encoding="utf-8") as f:
                 words_data = json.load(f)
         except:
             pass
 
     page = 1
-    max_workers = 5 # Avoid overwhelming the server
+    max_workers = 5
     consecutive_empty = 0
     
     print(f"Starting scrape from {base_url.format(1)}")
     
-    while consecutive_empty < 3: # Stop if 3 consecutive batches find no new words
+    while consecutive_empty < 3:
         urls = [base_url.format(p) for p in range(page, page + max_workers)]
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -79,15 +77,13 @@ def scrape_words():
             
             page += max_workers
             
-        # Incremental save
-        with open(output_path, "w", encoding="utf-8") as f:
+        with open(WORDS_JSON_PATH, "w", encoding="utf-8") as f:
             json.dump(words_data, f, indent=4)
         
         print(f"  Processed up to page {page-1}. Total words: {len(words_data)}. New in last batch: {new_words_in_batch}", end="\r")
         time.sleep(0.3)
         
-    print(f"\nFinal count: {len(words_data)} words saved to {output_path}")
-            
+    print(f"\nFinal count: {len(words_data)} words saved to {WORDS_JSON_PATH}")
 
 if __name__ == "__main__":
     scrape_words()

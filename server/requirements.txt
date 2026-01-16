@@ -1,5 +1,9 @@
 fastapi
 uvicorn[standard]
-sqlalchemy[asyncio]
 asyncpg
 python-dotenv
+requests
+beautifulsoup4
+qrcode
+pillow
+tqdm
