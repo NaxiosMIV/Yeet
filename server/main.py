@@ -22,11 +22,10 @@ connections = defaultdict(dict)
 def create_room():
     return {
         "board": [
-            {'x':1, 'y':1, 'letter': 'H'},
-            {'x':2, 'y':1, 'letter': 'E'},
-            {'x':3, 'y':1, 'letter': 'L'},
-            {'x':4, 'y':1, 'letter': 'L'},
-            {'x':5, 'y':1, 'letter': 'O'}
+            {'x':1, 'y':1, 'letter': 'S'},
+            {'x':2, 'y':1, 'letter': 'H'},
+            {'x':3, 'y':1, 'letter': 'I'},
+            {'x':4, 'y':1, 'letter': 'T'}
         ],
         "current_player": 0,
         "players": []
@@ -64,21 +63,17 @@ async def websocket_endpoint(ws: WebSocket):
         while True:
             data = await ws.receive_json()
 
+            # In main.py, inside the PLACE logic:
             if data["type"] == "PLACE":
-                if player_id != game["current_player"]:
-                    continue
-
                 x, y, letter = data["x"], data["y"], data["letter"]
 
-                if game["board"][y][x] is None:
-                    game["board"][y][x] = letter
-                    game["current_player"] = (
-                        game["current_player"] + 1
-                    ) % len(game["players"])
-                    await broadcast(room, {
-                        "type": "UPDATE",
-                        "state": game
-                    })
+                # Check if a tile already exists at these coordinates
+                exists = any(t for t in game["board"] if t['x'] == x and t['y'] == y)
+                
+                if not exists:
+                    game["board"].append({'x': x, 'y': y, 'letter': letter})
+                    # Broadcast the update
+                    await broadcast(room, {"type": "UPDATE", "state": game})
 
     except WebSocketDisconnect:
         connections[room].pop(player_id, None)

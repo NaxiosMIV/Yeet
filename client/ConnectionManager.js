@@ -1,5 +1,4 @@
-import { renderCanvas } from "./RenderCanvas.js";
-
+import { renderCanvas, screenToWorld, camera } from "./RenderCanvas.js";
 const startScreen = document.getElementById("start-screen");
 const gameScreen = document.getElementById("game-ui");
 
@@ -10,8 +9,11 @@ const startBtn = document.getElementById("startBtn");
 const createTab = document.getElementById("createTab");
 const joinTab = document.getElementById("joinTab");
 const joinBox = document.getElementById("joinBox");
+const canvas = document.getElementById("game-canvas");
 
 let mode = "create";
+
+let globalWs; // Store the connection here
 
 // Toggle UI
 createTab.onclick = () => {
@@ -52,24 +54,54 @@ startBtn.onclick = () => {
   location.href = `/?room=${room}&name=${encodeURIComponent(name)}`;
 };
 
+document.getElementById('reset-cam').addEventListener('click', () => {
+  camera.x = 0;
+  camera.y = 0;
+  camera.zoom = 40; // Default zoom level
+  
+  // Re-render to show changes
+  renderCanvas(window.lastKnownState || { board: [] });
+});
+
 function joinGame(room, name) {
   startScreen.classList.add("hidden");
   gameScreen.classList.remove("hidden");
 
   const protocol = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(
+  globalWs = new WebSocket(
     `${protocol}://${location.host}/ws?room=${room}&name=${name}`
   );
 
-  ws.onmessage = (e) => {
+  globalWs.onmessage = (e) => {
     const data = JSON.parse(e.data);
-    console.log(data);
-    if (!data.state) return; // safety check
-    const state = data.state;
-
-    const boardData = state.board; // array of {x, y, letter}
-    const boardSize = 15; // or calculate dynamically if needed
-    
-    renderCanvas(boardData, 15);
+    if (!data.state) return; 
+    window.lastKnownState = data.state;
+    renderCanvas(window.lastKnownState);
   };
 }
+
+canvas.addEventListener('click', (e) => {
+  if (camera.wasDragging) return;
+
+  // 1. Get tile coordinates
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  const worldPos = screenToWorld(mouseX, mouseY, rect);
+
+  // 2. Ask user for a letter
+  const char = prompt("Enter a letter:");
+  
+  if (char && char.length === 1 && globalWs && globalWs.readyState === WebSocket.OPEN) {
+    // 3. CONSTRUCT THE MESSAGE
+    const message = {
+      type: "PLACE",
+      x: worldPos.tileX,
+      y: worldPos.tileY,
+      letter: char.toUpperCase()
+    };
+
+    // 4. SEND TO SERVER
+    globalWs.send(JSON.stringify(message));
+  }
+});
