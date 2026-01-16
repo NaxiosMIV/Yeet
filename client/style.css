@@ -1,0 +1,13 @@
+body {
+  font-family: sans-serif;
+  background: #111;
+  color: #eee;
+}
+
+pre {
+  background: #222;
+  padding: 12px;
+  border-radius: 6px;
+  max-width: 600px;
+  overflow-x: auto;
+}
