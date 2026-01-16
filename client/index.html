@@ -1,14 +1,46 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Scrabble Prototype</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <meta charset="UTF-8" />
+  <title>WordCraft</title>
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
 
-  <h2>Room: <span id="room"></span></h2>
-  <pre id="state">Connecting...</pre>
+  <div class="app">
+
+    <header class="title">
+      <h1>🎮 WordCraft</h1>
+      <p class="subtitle">A modern word game experience</p>
+    </header>
+
+    <!-- START SCREEN -->
+    <div id="start-screen" class="card">
+      <h3>✨ Get Started</h3>
+      <p class="hint">Enter your name and create or join a game room</p>
+
+      <label>Your Name</label>
+      <input id="nameInput" placeholder="Enter your name..." />
+
+      <div class="toggle">
+        <button id="createTab" class="active">＋ Create Room</button>
+        <button id="joinTab">→ Join Room</button>
+      </div>
+
+      <div id="joinBox" class="hidden">
+        <input id="roomInput" placeholder="Enter room code" />
+      </div>
+
+      <button id="startBtn" class="primary">＋ Create New Room</button>
+    </div>
+
+    <!-- GAME SCREEN -->
+    <div id="game-screen" class="hidden">
+      <h3>Room: <span id="room"></span></h3>
+      <pre id="state">Connecting…</pre>
+    </div>
+
+  </div>
 
   <script src="/static/game.js"></script>
 </body>

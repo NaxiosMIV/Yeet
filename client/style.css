@@ -1,13 +1,89 @@
 body {
-  font-family: sans-serif;
-  background: #111;
-  color: #eee;
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: radial-gradient(#f8f9ff, #eef0ff);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+.app {
+  width: 420px;
+}
+
+.title {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.subtitle {
+  color: #666;
+}
+
+.card {
+  background: white;
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+}
+
+label {
+  font-size: 14px;
+  margin-top: 12px;
+  display: block;
+}
+
+input {
+  width: 100%;
+  padding: 12px;
+  margin-top: 6px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 14px;
+}
+
+.toggle {
+  display: flex;
+  margin: 16px 0;
+  background: #f1f1f1;
+  border-radius: 999px;
+}
+
+.toggle button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.toggle .active {
+  background: white;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.primary {
+  width: 100%;
+  padding: 14px;
+  border-radius: 10px;
+  border: none;
+  background: #6c63ff;
+  color: white;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.hidden {
+  display: none;
 }
 
 pre {
-  background: #222;
+  background: #111;
+  color: #0f0;
   padding: 12px;
-  border-radius: 6px;
-  max-width: 600px;
-  overflow-x: auto;
+  border-radius: 8px;
+  margin-top: 12px;
 }
