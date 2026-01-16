@@ -1,8 +1,14 @@
 from fastapi import APIRouter
 from fastapi.responses import FileResponse
-from core.words import check_word_in_cache
+from core.words import get_word_in_cache
+from .auth import router as auth_router
 
 router = APIRouter()
+router.include_router(auth_router)
+
+@router.get("/loginTest")
+async def loginTest():
+    return FileResponse("../client/loginTest.html")
 
 @router.get("/")
 async def index():
