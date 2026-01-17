@@ -50,7 +50,7 @@ export function updateLeaderboard(playersObj) {
           </div>
           ${isMe ? '<span class="inline-block text-xs px-2 py-0.5 bg-primary text-white rounded-full font-semibold whitespace-nowrap">PLAYING</span>' : ''}
         </div>
-      </div>
+      </div>  
       <div class="text-right flex-shrink-0 ml-2">
         <div class="font-bold text-lg" data-score-element="true">
           ${player.score} pts
