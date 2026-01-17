@@ -1,144 +1,145 @@
 import { renderCanvas, screenToWorld, camera } from "./RenderCanvas.js";
 import { updateLeaderboard } from "./UIManager.js";
 
-const startScreen = document.getElementById("start-screen");
-const gameScreen = document.getElementById("game-ui");
+// DOM References
+const elements = {
+  startScreen: document.getElementById("start-screen"),
+  gameUI: document.getElementById("game-ui"),
+  setupSection: document.getElementById("setup-section"),
+  userDisplayName: document.getElementById("user-name"),
+  authOverlay: document.getElementById("auth-overlay"),
+  createTab: document.getElementById("createTab"),
+  joinTab: document.getElementById("joinTab"),
+  joinBox: document.getElementById("joinBox"),
+  roomInput: document.getElementById("roomInput"),
+  startBtn: document.getElementById("startBtn"),
+  canvas: document.getElementById("game-canvas"),
+  resetCam: document.getElementById("reset-cam"),
+  googleContainer: document.getElementById("googleButtonContainer"),
+  guestBtn: document.getElementById("customGuestBtn")
+};
 
-const nameInput = document.getElementById("nameInput");
-const roomInput = document.getElementById("roomInput");
-const startBtn = document.getElementById("startBtn");
-
-const createTab = document.getElementById("createTab");
-const joinTab = document.getElementById("joinTab");
-const joinBox = document.getElementById("joinBox");
-const canvas = document.getElementById("game-canvas");
-
+let globalWs;
 let mode = "create";
+window.myPlayerName = "Guest";
 
-let globalWs; // Store the connection here
+// --- STARTUP LOGIC ---
+const init = () => {
+  // 1. Mirror the Card Pieces
+  const template = document.getElementById('login-template').innerHTML;
+  document.querySelectorAll('.card-content').forEach(el => el.innerHTML = template);
 
-// Toggle UI
-createTab.onclick = () => {
-  mode = "create";
-  createTab.classList.add("active");
-  joinTab.classList.remove("active");
-  joinBox.classList.add("hidden");
-  startBtn.textContent = "＋ Create New Room";
+  // 2. Setup UI Events
+  setupUIEvents();
+
+  // 3. Initialize Google Identity
+  initGoogleIdentity();
 };
 
-joinTab.onclick = () => {
-  mode = "join";
-  joinTab.classList.add("active");
-  createTab.classList.remove("active");
-  joinBox.classList.remove("hidden");
-  startBtn.textContent = "→ Join Room";
+const setupUIEvents = () => {
+  elements.createTab.onclick = () => {
+    mode = "create";
+    elements.joinBox.classList.add("hidden");
+    elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white dark:bg-slate-700 shadow text-primary";
+    elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-500";
+  };
+
+  elements.joinTab.onclick = () => {
+    mode = "join";
+    elements.joinBox.classList.remove("hidden");
+    elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white dark:bg-slate-700 shadow text-primary";
+    elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-500";
+  };
+
+  elements.guestBtn.onclick = () => {
+    handleLoginSuccess("Guest_" + Math.floor(Math.random() * 9000 + 1000));
+  };
+
+  elements.startBtn.onclick = () => {
+    const room = mode === "create" ? 
+      Math.random().toString(36).substring(2, 6).toUpperCase() : 
+      elements.roomInput.value.trim().toUpperCase();
+    
+    if (mode === "join" && !room) return alert("Enter room code");
+    joinGame(room, window.myPlayerName);
+  };
+
+  elements.resetCam.onclick = () => {
+    camera.x = 0; camera.y = 0; camera.zoom = 40;
+    if (window.lastKnownState) renderCanvas(window.lastKnownState);
+  };
 };
 
-// Auto-join if URL has room
-const params = new URLSearchParams(location.search);
-if (params.get("room")) {
-  joinGame(params.get("room"), params.get("name") || "Guest");
-}
+const initGoogleIdentity = () => {
+  // Define global callback for Google
+  window.handleCredentialResponse = (response) => {
+    const payload = JSON.parse(atob(response.credential.split('.')[1]));
+    handleLoginSuccess(payload.given_name || payload.name);
+  };
 
-const triggerError = () => {
-  const errorClasses = ["bg-red-500", "animate-shake", "shadow-red-200"];
-  const originalClasses = ["bg-primary", "shadow-indigo-200"];
+  // Check if library is ready, then render
+  const interval = setInterval(() => {
+    if (window.google) {
+      clearInterval(interval);
+      google.accounts.id.initialize({
+        client_id: "840399228482-6dj06avf54hj9dlffhbdpf6k6fga2m7e.apps.googleusercontent.com",
+        callback: window.handleCredentialResponse,
+        use_fedcm_for_prompt: false
+      });
+      google.accounts.id.renderButton(elements.googleContainer, {
+        theme: "outline", size: "large", width: "250", shape: "pill"
+      });
+    }
+  }, 100);
+};
 
-  startBtn.classList.remove(...errorClasses);
-  startBtn.classList.add(...originalClasses);
-  
-  void startBtn.offsetWidth; 
+const handleLoginSuccess = (name) => {
+  window.myPlayerName = name;
+  elements.userDisplayName.innerText = name;
+  elements.authOverlay.style.display = 'none';
 
-  startBtn.classList.remove(...originalClasses);
-  startBtn.classList.add(...errorClasses);
+  // Trigger Explosion Animation
+  ['.tl', '.tr', '.bl', '.br'].forEach(cls => {
+    document.querySelector(cls).classList.add(`throw-${cls.replace('.', '')}`);
+  });
 
   setTimeout(() => {
-    startBtn.classList.remove(...errorClasses);
-    startBtn.classList.add(...originalClasses);
-  }, 500);
+    elements.setupSection.classList.add('opacity-100', 'scale-100');
+  }, 400);
 };
 
-// Start button
-startBtn.onclick = () => {
-  const name = nameInput.value.trim();
-
-  // Validation
-  if (!name) {
-    triggerError();
-    nameInput.focus();
-    return;
-  }
-
-  let room;
-  if (mode === "create") {
-    room = Math.random().toString(36).substring(2, 6).toUpperCase();
-  } else {
-    room = roomInput.value.trim().toUpperCase();
-  }
-  if (!room) return alert("Enter room code");
-
-  location.href = `/?room=${room}&name=${encodeURIComponent(name)}`;
-};
-
-document.getElementById('reset-cam').addEventListener('click', () => {
-  camera.x = 0;
-  camera.y = 0;
-  camera.zoom = 40; // Default zoom level
-  
-  // Re-render to show changes
-  renderCanvas(window.lastKnownState || { board: [] });
-});
-
+// --- CORE GAME NETWORKING ---
 function joinGame(room, name) {
-  let myPlayerId = null;
-  startScreen.classList.add("hidden");
-  gameScreen.classList.remove("hidden");
+  elements.startScreen.classList.add("hidden");
+  elements.gameUI.classList.remove("hidden");
 
   const protocol = location.protocol === "https:" ? "wss" : "ws";
-  globalWs = new WebSocket(
-    `${protocol}://${location.host}/ws?room=${room}&name=${name}`
-    );
+  globalWs = new WebSocket(`${protocol}://${location.host}/ws?room=${room}&name=${name}`);
 
   globalWs.onmessage = (e) => {
-    
     const data = JSON.parse(e.data);
-    // console.log(data);
-    if (!data.state) return; 
-
-    if (data.type === "INIT") {
-      window.myPlayerId = data.playerId; 
-      // console.log("Logged in as:", window.myPlayerId);
-      myPlayerId = data.playerId;
-    }
-
+    if (!data.state) return;
+    if (data.type === "INIT") window.myPlayerId = data.playerId;
+    
     window.lastKnownState = data.state;
-    renderCanvas(window.lastKnownState);
-    updateLeaderboard(window.lastKnownState.players, myPlayerId);
+    renderCanvas(data.state);
+    updateLeaderboard(data.state.players, window.myPlayerId);
   };
 }
 
-canvas.addEventListener('click', (e) => {
+// Canvas Interaction
+elements.canvas.addEventListener('click', (e) => {
   if (camera.wasDragging) return;
-
-  // 1. Get tile coordinates
-  const rect = canvas.getBoundingClientRect();
-  const mouseX = e.clientX - rect.left;
-  const mouseY = e.clientY - rect.top;
-  const worldPos = screenToWorld(mouseX, mouseY, rect);
-
-  // 2. Ask user for a letter
+  const rect = elements.canvas.getBoundingClientRect();
+  const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top, rect);
   const char = prompt("Enter a letter:");
   
-  if (char && char.length === 1 && globalWs && globalWs.readyState === WebSocket.OPEN) {
-    // 3. CONSTRUCT THE MESSAGE
-    const message = {
-      type: "PLACE",
-      x: worldPos.tileX,
-      y: worldPos.tileY,
-      letter: char.toUpperCase()
-    };
-
-    // 4. SEND TO SERVER
-    globalWs.send(JSON.stringify(message));
+  if (char && char.length === 1 && globalWs?.readyState === WebSocket.OPEN) {
+    globalWs.send(JSON.stringify({
+      type: "PLACE", x: worldPos.tileX, y: worldPos.tileY, letter: char.toUpperCase()
+    }));
   }
 });
+
+// Run Init
+init();

@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir -r server/requirements.txt
 COPY server/ ./server/
 COPY client/ ./client/
 
+
 # Set working directory to server for running the app
 WORKDIR /app/server
 
