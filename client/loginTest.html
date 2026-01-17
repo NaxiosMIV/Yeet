@@ -61,7 +61,7 @@
             document.getElementById('token-text').innerText = response.credential;
 
             try {
-                const backendResponse = await fetch('/auth/verify_google_signup', {
+                const backendResponse = await fetch('/auth/login/google', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -72,7 +72,7 @@
                 const result = await backendResponse.json();
 
                 if (backendResponse.ok) {
-                    window.location.href = "/main";
+                    window.location.href = "/";
                 } else {
                     console.error("백엔드 검증 실패:", result);
                 }
@@ -81,19 +81,33 @@
             }
         }
 
-        window.onload = function () {
-            google.accounts.id.initialize({
-                client_id: "840399228482-6dj06avf54hj9dlffhbdpf6k6fga2m7e.apps.googleusercontent.com",
-                callback: handleCredentialResponse
-            });
+        async function initGoogleAuth() {
+            try {
+                const configResponse = await fetch('/auth/config');
+                const config = await configResponse.json();
 
-            google.accounts.id.renderButton(
-                document.getElementById("buttonDiv"),
-                { theme: "outline", size: "large", width: "250" }  // 버튼 디자인 설정
-            );
+                if (!config.google_client_id) {
+                    console.error("Google Client ID를 가져오지 못했습니다.");
+                    return;
+                }
+                console.log(config.google_client_id);
+                google.accounts.id.initialize({
+                    client_id: config.google_client_id,
+                    callback: handleCredentialResponse
+                });
 
-            google.accounts.id.prompt(); // 페이지 로드 시 원탭 로그인 프롬프트 띄우기
-        };
+                google.accounts.id.renderButton(
+                    document.getElementById("buttonDiv"),
+                    { theme: "outline", size: "large", width: "250" }
+                );
+
+                google.accounts.id.prompt();
+            } catch (error) {
+                console.error("설정 로드 오류:", error);
+            }
+        }
+
+        window.onload = initGoogleAuth;
     </script>
 
 </body>
