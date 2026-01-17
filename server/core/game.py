@@ -12,7 +12,7 @@ def create_room():
             {'x': 1, 'y': 1, 'letter': 'S'},
             {'x': 2, 'y': 1, 'letter': 'H'},
             {'x': 3, 'y': 1, 'letter': 'I'},
-            {'x': 4, 'y': 1, 'letter': 'T'}
+            {'x': 4, 'y': 1, 'letter': 'F'}
         ],
         "current_player": 0,
         "players": []

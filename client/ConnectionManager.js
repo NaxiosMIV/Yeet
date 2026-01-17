@@ -38,18 +38,42 @@ if (params.get("room")) {
   joinGame(params.get("room"), params.get("name") || "Guest");
 }
 
+const triggerError = () => {
+  const errorClasses = ["bg-red-500", "animate-shake", "shadow-red-200"];
+  const originalClasses = ["bg-primary", "shadow-indigo-200"];
+
+  startBtn.classList.remove(...errorClasses);
+  startBtn.classList.add(...originalClasses);
+  
+  void startBtn.offsetWidth; 
+
+  startBtn.classList.remove(...originalClasses);
+  startBtn.classList.add(...errorClasses);
+
+  setTimeout(() => {
+    startBtn.classList.remove(...errorClasses);
+    startBtn.classList.add(...originalClasses);
+  }, 500);
+};
+
 // Start button
 startBtn.onclick = () => {
   const name = nameInput.value.trim();
-  if (!name) return alert("Enter your name");
+
+  // Validation
+  if (!name) {
+    triggerError();
+    nameInput.focus();
+    return;
+  }
 
   let room;
   if (mode === "create") {
     room = Math.random().toString(36).substring(2, 6).toUpperCase();
   } else {
     room = roomInput.value.trim().toUpperCase();
-    if (!room) return alert("Enter room code");
   }
+  if (!room) return alert("Enter room code");
 
   location.href = `/?room=${room}&name=${encodeURIComponent(name)}`;
 };
