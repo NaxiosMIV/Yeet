@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>구글 로그인 테스트</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #f0f2f5;
+        }
+
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        #token-display {
+            margin-top: 20px;
+            word-break: break-all;
+            background: #eee;
+            padding: 10px;
+            font-size: 12px;
+            max-width: 400px;
+            border-radius: 4px;
+            display: none;
+        }
+
+        h2 {
+            color: #4285F4;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <p>구글 로그인 테스트 페이지입니다.</p>
+
+        <div id="buttonDiv"></div>
+
+        <div id="token-display">
+            <strong>서버로 보낼 ID 토큰:</strong><br>
+            <span id="token-text"></span>
+        </div>
+    </div>
+
+    <script>
+        async function handleCredentialResponse(response) {
+            document.getElementById('token-display').style.display = 'block';
+            document.getElementById('token-text').innerText = response.credential;
+
+            try {
+                const backendResponse = await fetch('/auth/verify_google_signup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ token: response.credential })
+                });
+
+                const result = await backendResponse.json();
+
+                if (backendResponse.ok) {
+                    window.location.href = "/main";
+                } else {
+                    console.error("백엔드 검증 실패:", result);
+                }
+            } catch (error) {
+                console.error("통신 오류:", error);
+            }
+        }
+
+        window.onload = function () {
+            google.accounts.id.initialize({
+                client_id: "840399228482-6dj06avf54hj9dlffhbdpf6k6fga2m7e.apps.googleusercontent.com",
+                callback: handleCredentialResponse
+            });
+
+            google.accounts.id.renderButton(
+                document.getElementById("buttonDiv"),
+                { theme: "outline", size: "large", width: "250" }  // 버튼 디자인 설정
+            );
+
+            google.accounts.id.prompt(); // 페이지 로드 시 원탭 로그인 프롬프트 띄우기
+        };
+    </script>
+
+</body>
+
+</html>
