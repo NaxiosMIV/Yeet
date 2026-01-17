@@ -10,6 +10,10 @@ router.include_router(auth_router)
 async def loginTest():
     return FileResponse("../client/loginTest.html")
 
+@router.get("/chatTest")
+async def chat_test():
+    return FileResponse("../client/chatTest.html")
+
 @router.get("/")
 async def index():
     return FileResponse("../client/index.html")
