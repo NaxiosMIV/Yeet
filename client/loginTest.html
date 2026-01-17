@@ -58,7 +58,6 @@
     <script>
         async function handleCredentialResponse(response) {
             document.getElementById('token-display').style.display = 'block';
-            document.getElementById('token-text').innerText = response.credential;
 
             try {
                 const backendResponse = await fetch('/auth/login/google', {
