@@ -33,7 +33,6 @@ export function updateLeaderboard(playersObj) {
     row.innerHTML = `
       <div class="flex items-center gap-4">
         <div class="relative">
-          <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=${player.name}" class="w-10 h-10 rounded-xl bg-slate-200 border-2 border-white" />
           ${isMe ? '<span class="absolute -top-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>' : ''}
         </div>
         <div>

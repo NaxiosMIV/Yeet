@@ -181,9 +181,17 @@
       </aside>
       <div class="flex-1 relative bg-slate-100 dark:bg-slate-950">
         <canvas id="game-canvas" class="w-full h-full"></canvas>
+        <!-- Reset Camera Button -->
+        <button id="reset-cam" class="absolute bottom-6 right-6 p-3 bg-primary text-white rounded-full shadow-lg hover:opacity-90 active:scale-95 transition-all z-10">
+          <span class="material-icons-round">center_focus_strong</span>
+        </button>
       </div>
     </main>
   </div>
+
+  <script type="module" src="/static/ConnectionManager.js"></script>
+  <script type="module" src="/static/RenderCanvas.js"></script>
+  <script type="module" src="/static/UIManager.js"></script>
 
   <script type="module">
     // 1. Setup the Quad Mirroring
