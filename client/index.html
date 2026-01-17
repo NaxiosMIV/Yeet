@@ -101,8 +101,26 @@
 
   <div id="game-ui" class="hidden flex flex-col h-screen w-full">
     <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8">
-      <h1 class="font-display font-bold text-xl uppercase tracking-tighter text-slate-900">WordMasters <span class="text-[#6366F1]">Royale</span></h1>
-    </header>
+    <div class="flex items-center">
+      <h1 class="font-display font-bold text-xl uppercase tracking-tighter text-slate-900">
+        WordMasters <span class="text-[#6366F1]">Royale</span>
+      </h1>
+    </div>
+
+    <div class="flex items-center gap-4">
+      <div id="room-display" class="flex items-center bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-2">Room</span>
+        <span id="room-id-text" class="font-mono font-bold text-[#6366F1] tracking-wider">------</span>
+      </div>
+      
+      <div class="h-8 w-[1px] bg-slate-200 mx-2"></div>
+      
+      <div id="player-info" class="font-semibold text-slate-600 flex items-center gap-2">
+        <span class="material-icons-round text-slate-400">account_circle</span>
+        <span id="header-user-name">Guest</span>
+      </div>
+    </div>
+  </header>
 
     <main class="flex flex-1 overflow-hidden">
       <aside class="w-80 border-r border-slate-200 bg-white p-6">

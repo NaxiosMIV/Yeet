@@ -40,15 +40,15 @@ const setupUIEvents = () => {
   elements.createTab.onclick = () => {
     mode = "create";
     elements.joinBox.classList.add("hidden");
-    elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white dark:bg-slate-700 shadow text-primary";
-    elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-500";
+    elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-primary";
+    elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-400";
   };
 
   elements.joinTab.onclick = () => {
     mode = "join";
     elements.joinBox.classList.remove("hidden");
-    elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white dark:bg-slate-700 shadow text-primary";
-    elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-500";
+    elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-primary";
+    elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-400";
   };
 
   elements.guestBtn.onclick = () => {
@@ -112,12 +112,15 @@ const handleLoginSuccess = (name) => {
 function joinGame(room, name) {
   elements.startScreen.classList.add("hidden");
   elements.gameUI.classList.remove("hidden");
+  document.getElementById("room-id-text").innerText = room;
 
   const protocol = location.protocol === "https:" ? "wss" : "ws";
   globalWs = new WebSocket(`${protocol}://${location.host}/ws?room=${room}&name=${name}`);
 
   globalWs.onmessage = (e) => {
     const data = JSON.parse(e.data);
+    // console.log(data.playerId);
+    
     if (!data.state) return;
     if (data.type === "INIT") window.myPlayerId = data.playerId;
     
