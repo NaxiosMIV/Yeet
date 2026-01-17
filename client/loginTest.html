@@ -56,18 +56,12 @@
     </div>
 
     <script>
-        // 로그인이 성공했을 때 실행되는 함수
         async function handleCredentialResponse(response) {
-            console.log("로그인 성공!");
-            console.log("ID 토큰:", response.credential);
-
-            // 화면에 토큰 표시
             document.getElementById('token-display').style.display = 'block';
             document.getElementById('token-text').innerText = response.credential;
 
             try {
-                // 백엔드로 토큰 전송하여 검증 요청
-                const backendResponse = await fetch('/auth/verify', {
+                const backendResponse = await fetch('/auth/verify_google_signup', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -78,15 +72,12 @@
                 const result = await backendResponse.json();
 
                 if (backendResponse.ok) {
-                    console.log("백엔드 검증 성공:", result);
-                    alert(`${result.user.name}님, 환영합니다!\n(백엔드 검증 완료)\n이메일: ${result.user.email}`);
+                    window.location.href = "/main";
                 } else {
                     console.error("백엔드 검증 실패:", result);
-                    alert("백엔드 검증에 실패했습니다: " + (result.detail || "알 수 없는 오류"));
                 }
             } catch (error) {
                 console.error("통신 오류:", error);
-                alert("서버와 통신 중 오류가 발생했습니다.");
             }
         }
 

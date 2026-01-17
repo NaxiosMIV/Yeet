@@ -1,5 +1,9 @@
 import asyncpg
-from core.config import DATABASE_URL
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 async def get_db_connection():
     return await asyncpg.connect(DATABASE_URL)
@@ -7,14 +11,26 @@ async def get_db_connection():
 async def init_db():
     conn = await get_db_connection()
     try:
+        # Make dictionary table
         await conn.execute("""
-            DROP TABLE IF EXISTS dictionary;
-        """)
-        await conn.execute("""
-            CREATE TABLE dictionary (
+            CREATE TABLE IF NOT EXISTS dictionary (
                 word TEXT PRIMARY KEY,
                 length INTEGER,
                 score INTEGER
+            );
+        """)
+        # Make users table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_uuid UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                social_id TEXT,
+                provider TEXT NOT NULL, -- 'google', 'kakao', 'guest'
+                email TEXT,
+                name TEXT,
+                picture TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (social_id, provider)
             );
         """)
     finally:
@@ -26,14 +42,5 @@ async def get_user(email: str):
         return await conn.fetchval("""
             SELECT * FROM users WHERE email = $1
         """, email)
-    finally:
-        await conn.close()
-
-async def create_user(email: str, name: str, picture: str):
-    conn = await get_db_connection()
-    try:
-        return await conn.execute("""   
-            INSERT INTO users (email, name, picture) VALUES ($1, $2, $3)
-        """, email, name, picture)
     finally:
         await conn.close()

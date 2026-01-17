@@ -1,12 +1,18 @@
 from fastapi import APIRouter, HTTPException, Body
 from google.oauth2 import id_token
 from google.auth.transport import requests
-from core.config import GOOGLE_CLIENT_ID
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-@router.post("/verify")
-async def verify_google_token(token: str = Body(..., embed=True)):
+
+
+@router.post("/verify_google_signup")
+async def verify_google_signup(token: str = Body(..., embed=True)):
     try:
         # Verify the ID token
         id_info = id_token.verify_oauth2_token(token, requests.Request(), GOOGLE_CLIENT_ID)
@@ -26,7 +32,7 @@ async def verify_google_token(token: str = Body(..., embed=True)):
                 "picture": picture
             }
         }
-        
+
     except ValueError as e:
         # Invalid token
         raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")

@@ -6,6 +6,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from server.core.config import WORDS_JSON_PATH, DATA_DIR
 
+# 단어들을 웹에서 크롤링 해주는 파이썬 파일
 def get_words_from_page(url):
     try:
         response = requests.get(url, timeout=10)

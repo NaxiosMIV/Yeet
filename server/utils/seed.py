@@ -1,8 +1,15 @@
 import json
 import asyncio
 import asyncpg
-from server.core.config import DATABASE_URL, WORDS_JSON_PATH
+from core.config import WORDS_JSON_PATH
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# data/words.json 파일의 단어들을 DB로 옮기는 함수
+# 서버 생성후 최초 1회만 시행하면 됨
 async def migrate_words():
     print(f"Loading words from {WORDS_JSON_PATH}...")
     try:
