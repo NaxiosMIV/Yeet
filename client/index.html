@@ -85,6 +85,15 @@
           <input id="roomInput" class="w-full rounded-xl p-4 bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-[#6366F1]" placeholder="Room Code" />
         </div>
         <button id="startBtn" class="w-full bg-[#6366F1] text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-[#4F46E5] transition-colors">Start Game</button>
+        <div id="color-picker-container" class="hidden mt-6 pt-4 border-t border-slate-100">
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Your Player Color</label>
+          <div class="relative flex items-center gap-4">
+            <div id="color-preview" class="w-10 h-10 rounded-xl shadow-inner border-2 border-white bg-[#6366F1]"></div>
+            <input type="range" id="hue-slider" min="0" max="360" value="231" 
+              class="flex-1 h-3 rounded-lg appearance-none cursor-pointer outline-none"
+              style="background: linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);">
+          </div>
+        </div>
       </div>
 
       <div class="split-piece tl"><div class="card-content"></div></div>
@@ -94,7 +103,8 @@
 
       <div id="auth-overlay" class="absolute inset-0 z-[70] flex flex-col items-center justify-end pb-12 pointer-events-none">
         <div id="googleButtonContainer" class="pointer-events-auto mb-3"></div>
-        <button id="customGuestBtn" class="pointer-events-auto w-[250px] py-3 bg-slate-100 text-slate-600 rounded-full font-semibold border border-slate-200 shadow-sm active:scale-95 transition-transform">Join as Guest</button>
+        <button id="customGuestBtn" class="pointer-events-auto w-[250px] py-3 bg-slate-100 text-slate-600 rounded-full
+                                          font-semibold border border-slate-200 shadow-sm active:scale-95 transition-transform">Join as Guest</button>
       </div>
     </div>
   </div>

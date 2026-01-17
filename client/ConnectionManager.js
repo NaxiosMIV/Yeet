@@ -16,23 +16,24 @@ const elements = {
   canvas: document.getElementById("game-canvas"),
   resetCam: document.getElementById("reset-cam"),
   googleContainer: document.getElementById("googleButtonContainer"),
-  guestBtn: document.getElementById("customGuestBtn")
+  guestBtn: document.getElementById("customGuestBtn"),
+  // New Color Picker Elements
+  colorPickerContainer: document.getElementById("color-picker-container"),
+  hueSlider: document.getElementById("hue-slider"),
+  colorPreview: document.getElementById("color-preview")
 };
 
 let globalWs;
 let mode = "create";
+let selectedColor = "#6366F1"; // Default primary color
 window.myPlayerName = "Guest";
 
 // --- STARTUP LOGIC ---
 const init = () => {
-  // 1. Mirror the Card Pieces
   const template = document.getElementById('login-template').innerHTML;
   document.querySelectorAll('.card-content').forEach(el => el.innerHTML = template);
 
-  // 2. Setup UI Events
   setupUIEvents();
-
-  // 3. Initialize Google Identity
   initGoogleIdentity();
 };
 
@@ -40,20 +41,30 @@ const setupUIEvents = () => {
   elements.createTab.onclick = () => {
     mode = "create";
     elements.joinBox.classList.add("hidden");
-    elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-primary";
+    elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[#6366F1]";
     elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-400";
   };
 
   elements.joinTab.onclick = () => {
     mode = "join";
     elements.joinBox.classList.remove("hidden");
-    elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-primary";
+    elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[#6366F1]";
     elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-400";
   };
 
   elements.guestBtn.onclick = () => {
-    handleLoginSuccess("Guest_" + Math.floor(Math.random() * 9000 + 1000));
+    handleLoginSuccess("Guest_" + Math.floor(Math.random() * 9000 + 1000), false);
   };
+
+  // Color Picker Logic
+  if (elements.hueSlider) {
+    elements.hueSlider.oninput = (e) => {
+      const hue = e.target.value;
+      // We use HSL for easier color math; 70% saturation and 60% lightness keeps it vibrant
+      selectedColor = `hsl(${hue}, 70%, 60%)`;
+      elements.colorPreview.style.backgroundColor = selectedColor;
+    };
+  }
 
   elements.startBtn.onclick = () => {
     const room = mode === "create" ? 
@@ -71,13 +82,11 @@ const setupUIEvents = () => {
 };
 
 const initGoogleIdentity = () => {
-  // Define global callback for Google
   window.handleCredentialResponse = (response) => {
     const payload = JSON.parse(atob(response.credential.split('.')[1]));
-    handleLoginSuccess(payload.given_name || payload.name);
+    handleLoginSuccess(payload.given_name || payload.name, true);
   };
 
-  // Check if library is ready, then render
   const interval = setInterval(() => {
     if (window.google) {
       clearInterval(interval);
@@ -93,10 +102,15 @@ const initGoogleIdentity = () => {
   }, 100);
 };
 
-const handleLoginSuccess = (name) => {
+const handleLoginSuccess = (name, isAuthorized = false) => {
   window.myPlayerName = name;
   elements.userDisplayName.innerText = name;
   elements.authOverlay.style.display = 'none';
+
+  // Show color picker ONLY if authorized via Google
+  if (isAuthorized && elements.colorPickerContainer) {
+    elements.colorPickerContainer.classList.remove("hidden");
+  }
 
   // Trigger Explosion Animation
   ['.tl', '.tr', '.bl', '.br'].forEach(cls => {
@@ -115,11 +129,12 @@ function joinGame(room, name) {
   document.getElementById("room-id-text").innerText = room;
 
   const protocol = location.protocol === "https:" ? "wss" : "ws";
-  globalWs = new WebSocket(`${protocol}://${location.host}/ws?room=${room}&name=${name}`);
+  // Added 'color' parameter to the WebSocket handshake
+  const colorParam = encodeURIComponent(selectedColor);
+  globalWs = new WebSocket(`${protocol}://${location.host}/ws?room=${room}&name=${name}&color=${colorParam}`);
 
   globalWs.onmessage = (e) => {
     const data = JSON.parse(e.data);
-    // console.log(data.playerId);
     
     if (!data.state) return;
     if (data.type === "INIT") window.myPlayerId = data.playerId;
@@ -144,7 +159,4 @@ elements.canvas.addEventListener('click', (e) => {
   }
 });
 
-
-
-// Run Init
 init();
