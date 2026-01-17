@@ -7,355 +7,132 @@
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Lexend:wght@700&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
 
-  <script>
-    tailwind.config = {
-      darkMode: "class",
-      theme: {
-        extend: {
-          colors: { primary: "#6366f1" },
-          fontFamily: {
-            display: ["Lexend", "sans-serif"],
-            body: ["Inter", "sans-serif"],
-          },
-        },
-      },
-    };
-  </script>
-
   <style>
+    :root {
+      /* Exact colors from the provided image */
+      --primary: #6366F1;
+      --bg-slate: #F8FAFC;
+      --tile-cream: #FFEDD5;
+      --tile-mint: #D1FAE5;
+      --tile-lavender: #EDE9FE;
+      --tile-blue: #DBEAFE;
+    }
+
     .hidden { display: none; }
+    #explosion-viewport { perspective: 1000px; }
     
-    /* --- QUAD SPLIT ANIMATION --- */
-    #explosion-viewport {
-      perspective: 1000px;
-    }
-
     .split-piece {
-      position: absolute;
-      inset: 0;
-      background: white;
-      border-radius: 2.5rem;
-      z-index: 50;
-      transition: transform 2s cubic-bezier(0.25, 1, 0.5, 1), opacity 2s ease;
-      overflow: hidden;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      position: absolute; inset: 0; background: white; border-radius: 2.5rem;
+      z-index: 50; transition: transform 1.5s cubic-bezier(0.25, 1, 0.5, 1), opacity 1.5s ease;
+      overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
     }
 
-    /* Clipping quadrants */
     .tl { clip-path: inset(0 50% 50% 0); }
     .tr { clip-path: inset(0 0 50% 50%); }
     .bl { clip-path: inset(50% 50% 0 0); }
     .br { clip-path: inset(50% 0 0 50%); }
 
-    /* Throw away states */
-    .throw-tl { transform: translate(-150%, -150%) rotate(-30deg) scale(0.5); opacity: 0; }
-    .throw-tr { transform: translate(150%, -150%) rotate(30deg) scale(0.5); opacity: 0; }
-    .throw-bl { transform: translate(-150%, 150%) rotate(-15deg) scale(0.5); opacity: 0; }
-    .throw-br { transform: translate(150%, 150%) rotate(15deg) scale(0.5); opacity: 0; }
+    .throw-tl { transform: translate(-50%, -50%) rotate(-30deg) scale(0.5); opacity: 0; }
+    .throw-tr { transform: translate(50%, -50%) rotate(30deg) scale(0.5); opacity: 0; }
+    .throw-bl { transform: translate(-50%, 50%) rotate(-15deg) scale(0.5); opacity: 0; }
+    .throw-br { transform: translate(50%, 50%) rotate(15deg) scale(0.5); opacity: 0; }
 
-    /* Ensure content inside doesn't move when clipped */
-    .card-content {
-      width: 400px;
-      height: 400px;
-      position: absolute;
-      top: 0;
-      left: 0;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-      align-items: center;
-      padding: 40px 20px;
+    .card-content { width: 400px; height: 400px; position: absolute; top: 0; left: 0; }
+
+    /* Leaderboard Styles */
+    #leaderboard { display: flex; flex-direction: column; gap: 12px; }
+
+    .leaderboard-item {
+      transition: all 0.4s ease;
+      background-color: white;
+      border: 1px solid #E2E8F0;
+      border-radius: 1rem;
     }
 
-    /* Login pieces - display the button div content */
-    .login-piece-tl,
-    .login-piece-tr,
-    .login-piece-bl,
-    .login-piece-br {
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
+    /* Active User Highlight Color */
+    .user-active {
+      background-color: #EEF2FF;
+      border: 2px solid var(--primary);
     }
 
-    .login-piece-tl > div,
-    .login-piece-tr > div,
-    .login-piece-bl > div,
-    .login-piece-br > div {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
+    @keyframes pulse-border {
+      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.2); }
+      50% { transform: scale(1.02); box-shadow: 0 0 0 8px rgba(99, 102, 241, 0); }
+      100% { transform: scale(1); }
     }
 
-    /* Prevent button color changes */
-    #guestBtnTemplate,
-    #guestBtnTemplate:hover,
-    #guestBtnTemplate:active {
-      background-color: #e2e8f0 !important;
-      color: #1e293b !important;
-    }
-
-    /* Custom button container positioning */
-    #custom-button-container {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-    }
-
-    /* Hide buttons in split pieces */
-    .split-piece #googleButtonContainer,
-    .split-piece #customGuestBtn {
-      display: none !important;
-    }
+    .score-pulse { animation: pulse-border 0.6s ease-out; z-index: 10; }
   </style>
 </head>
 
-<body class="font-body bg-slate-950 min-h-screen overflow-hidden">
-
-  <div id="start-screen" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-800 to-slate-950">
-    
+<body class="font-body bg-[#F8FAFC] min-h-screen overflow-hidden">
+  
+  <div id="start-screen" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-50">
     <div id="explosion-viewport" class="relative w-[400px] h-[400px]">
       
-      <div id="setup-section" class="absolute inset-0 bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] shadow-2xl flex flex-col justify-center opacity-0 scale-90 transition-all duration-700">
+      <div id="setup-section" class="absolute inset-0 bg-white p-10 rounded-[2.5rem] shadow-xl flex flex-col justify-center opacity-0 scale-90 transition-all duration-700">
         <div class="text-center mb-8">
-          <div class="inline-block p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl mb-4">
-            <span class="material-icons-round text-primary">person_add</span>
-          </div>
-          <h2 class="text-2xl font-display font-bold dark:text-white">Welcome, <span id="user-name" class="text-primary">Player</span></h2>
-          <p class="text-slate-500">Pick a room to begin</p>
+          <h2 class="text-2xl font-display font-bold text-slate-900">Welcome, <span id="user-name" class="text-[#6366F1]">Player</span></h2>
         </div>
-
-        <div class="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-4">
-          <button id="createTab" class="flex-1 py-2.5 rounded-xl font-bold text-sm bg-white dark:bg-slate-700 shadow text-primary transition-all">Create</button>
-          <button id="joinTab" class="flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-500 dark:text-slate-400 transition-all">Join</button>
+        <div class="flex p-1 bg-slate-100 rounded-2xl mb-4">
+          <button id="createTab" class="flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[#6366F1]">Create</button>
+          <button id="joinTab" class="flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-400">Join</button>
         </div>
-
         <div id="joinBox" class="hidden mb-4">
-          <input id="roomInput" class="w-full rounded-xl p-4 bg-slate-100 dark:bg-slate-800 dark:text-white border-none outline-none focus:ring-2 focus:ring-primary" placeholder="Room Code" />
+          <input id="roomInput" class="w-full rounded-xl p-4 bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-[#6366F1]" placeholder="Room Code" />
         </div>
-
-        <button id="startBtn" class="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all">
-          Enter Game
-        </button>
+        <button id="startBtn" class="w-full bg-[#6366F1] text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-[#4F46E5] transition-colors">Start Game</button>
       </div>
 
-      <div class="split-piece tl pointer-events-auto"><div class="card-content login-piece-tl"></div></div>
-      <div class="split-piece tr pointer-events-none"><div class="card-content login-piece-tr"></div></div>
-      <div class="split-piece bl pointer-events-auto"><div class="card-content login-piece-bl"></div></div>
-      <div class="split-piece br pointer-events-auto z-[60]"><div class="card-content login-piece-br"></div></div>
+      <div class="split-piece tl"><div class="card-content"></div></div>
+      <div class="split-piece tr"><div class="card-content"></div></div>
+      <div class="split-piece bl"><div class="card-content"></div></div>
+      <div class="split-piece br z-[60]"><div class="card-content"></div></div>
 
-      <!-- Custom button container (not split) -->
-      <div id="custom-button-container" class="absolute inset-0 pointer-events-none flex flex-col items-center justify-end pb-8 z-[70]">
-        <div id="googleButtonContainer" style="pointer-events: auto; margin-bottom: 8px;"></div>
-        <button id="customGuestBtn" class="px-6 py-3 bg-slate-200 text-slate-800 rounded-full font-semibold shadow-lg transition-all cursor-default" style="pointer-events: auto; width: 250px; height: 48px; display: flex; align-items: center; justify-content: center;">
-          Join as Guest
-        </button>
+      <div id="auth-overlay" class="absolute inset-0 z-[70] flex flex-col items-center justify-end pb-12 pointer-events-none">
+        <div id="googleButtonContainer" class="pointer-events-auto mb-3"></div>
+        <button id="customGuestBtn" class="pointer-events-auto w-[250px] py-3 bg-slate-100 text-slate-600 rounded-full font-semibold border border-slate-200 shadow-sm active:scale-95 transition-transform">Join as Guest</button>
       </div>
-
-      <template id="login-template">
-        <div class="w-[400px] h-[400px] p-10 flex flex-col items-center text-center bg-white rounded-[2.5rem] justify-start pt-6">
-          <div class="p-5 bg-indigo-50 rounded-3xl mb-6 -mt-36">
-            <span class="material-icons-round text-primary text-5xl">rocket_launch</span>
-          </div>
-          <h1 class="text-3xl font-display font-bold text-slate-900">WordMasters</h1>
-        </div>
-      </template>
-
     </div>
   </div>
 
-  <div id="game-ui" class="hidden flex flex-col h-screen">
-    <header class="h-16 bg-white dark:bg-slate-900 border-b dark:border-slate-800 flex items-center justify-between px-8">
-      <h1 class="font-display font-bold text-xl uppercase tracking-tighter dark:text-white">WordMasters <span class="text-primary">Royale</span></h1>
+  <div id="game-ui" class="hidden flex flex-col h-screen w-full">
+    <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8">
+      <h1 class="font-display font-bold text-xl uppercase tracking-tighter text-slate-900">WordMasters <span class="text-[#6366F1]">Royale</span></h1>
     </header>
+
     <main class="flex flex-1 overflow-hidden">
-      <aside class="w-80 border-r dark:border-slate-800 bg-white dark:bg-slate-900 p-8">
-        <h2 class="font-bold text-lg mb-6 flex items-center gap-2 dark:text-white">
-          <span class="material-icons-round text-yellow-500">leaderboard</span> Leaderboard
+      <aside class="w-80 border-r border-slate-200 bg-white p-6">
+        <h2 class="font-bold text-lg mb-6 text-slate-900 flex items-center gap-2">
+          <span class="material-icons-round text-amber-500">leaderboard</span> Leaderboard
         </h2>
-        <div id="leaderboard" class="flex flex-col gap-3"></div>
+        <div id="leaderboard">
+          
+        </div>
       </aside>
-      <div class="flex-1 relative bg-slate-100 dark:bg-slate-950">
+
+      <div class="flex-1 relative bg-[#F8FAFC]">
         <canvas id="game-canvas" class="w-full h-full"></canvas>
-        <!-- Reset Camera Button -->
-        <button id="reset-cam" class="absolute bottom-6 right-6 p-3 bg-primary text-white rounded-full shadow-lg hover:opacity-90 active:scale-95 transition-all z-10">
+        <button id="reset-cam" class="absolute bottom-6 right-6 p-3 bg-white border border-slate-200 text-slate-400 rounded-full shadow-md hover:text-[#6366F1]">
           <span class="material-icons-round">center_focus_strong</span>
         </button>
       </div>
     </main>
   </div>
 
+  <template id="login-template">
+    <div class="w-[400px] h-[400px] p-10 flex flex-col items-center text-center pt-10 bg-white">
+      <div class="p-5 bg-indigo-50 rounded-3xl mb-6">
+        <span class="material-icons-round text-[#6366F1] text-5xl">rocket_launch</span>
+      </div>
+      <h1 class="text-4xl font-display font-bold text-slate-900 tracking-tight">WordMasters</h1>
+      <p class="text-slate-400 mt-2 font-medium">Multiplayer Royale</p>
+    </div>
+  </template>
+
   <script type="module" src="/static/ConnectionManager.js"></script>
-  <script type="module" src="/static/RenderCanvas.js"></script>
-  <script type="module" src="/static/UIManager.js"></script>
-
-  <script type="module">
-    // 1. Setup the Quad Mirroring
-    const pieces = document.querySelectorAll('.card-content');
-    const templateContent = document.getElementById('login-template').innerHTML;
-    pieces.forEach(p => p.innerHTML = templateContent);
-
-    // 2. Google Login Callback
-    window.handleCredentialResponse = (response) => {
-      const payload = JSON.parse(atob(response.credential.split('.')[1]));
-      document.getElementById('user-name').innerText = payload.given_name || payload.name;
-      window.myPlayerName = payload.name;
-
-      // START EXPLOSION
-      document.querySelector('.tl').classList.add('throw-tl');
-      document.querySelector('.tr').classList.add('throw-tr');
-      document.querySelector('.bl').classList.add('throw-bl');
-      document.querySelector('.br').classList.add('throw-br');
-
-      // Apply gravity physics to buttons
-      const buttonContainer = document.getElementById('custom-button-container');
-      buttonContainer.classList.add('throwing');
-      buttonContainer.style.display = 'none';
-
-      // Reveal Setup Menu
-      const setup = document.getElementById('setup-section');
-      setTimeout(() => {
-        setup.classList.add('opacity-100', 'scale-100');
-      }, 400);
-    };
-
-    window.onload = function () {
-      google.accounts.id.initialize({
-        client_id: "840399228482-6dj06avf54hj9dlffhbdpf6k6fga2m7e.apps.googleusercontent.com",
-        callback: window.handleCredentialResponse,
-        use_fedcm_for_prompt: false // Disables the buggy FedCM prompt
-      });
-
-      // Render the button only in the custom container (not split)
-      setTimeout(() => {
-        const btnContainer = document.getElementById('googleButtonContainer');
-        if (btnContainer) {
-          google.accounts.id.renderButton(
-            btnContainer,
-            { theme: "outline", size: "large", width: "250", shape: "pill" }
-          );
-        }
-      }, 100);
-      
-      google.accounts.id.prompt();
-    };
-
-    // 3. UI Interactions
-    const cTab = document.getElementById('createTab');
-    const jTab = document.getElementById('joinTab');
-    const jBox = document.getElementById('joinBox');
-
-    jTab.onclick = () => {
-      jBox.classList.remove('hidden');
-      jTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white dark:bg-slate-700 shadow text-primary";
-      cTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-500";
-    };
-
-    cTab.onclick = () => {
-      jBox.classList.add('hidden');
-      cTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white dark:bg-slate-700 shadow text-primary";
-      jTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-500";
-    };
-
-    // Guest login button from setup section
-    const guestBtnSetup = document.getElementById('guestBtn');
-    if (guestBtnSetup) {
-      guestBtnSetup.onclick = () => {
-        const name = document.getElementById('nameInput').value.trim();
-        if (!name) {
-          alert("Please enter a name");
-          return;
-        }
-        // Generate a random room code for guest
-        const room = Math.random().toString(36).substring(2, 6).toUpperCase();
-        location.href = `/?room=${room}&name=${encodeURIComponent(name)}&guest=true`;
-      };
-    }
-
-    // Custom guest button (not split)
-    const customGuestBtn = document.getElementById('customGuestBtn');
-    if (customGuestBtn) {
-      customGuestBtn.onclick = () => {
-        // Generate guest name and room
-        const randomDigits = String(Math.floor(Math.random() * 10000)).padStart(4, '0');
-        const name = "GUEST" + randomDigits;
-        const room = Math.random().toString(36).substring(2, 6).toUpperCase();
-        
-        // Set the user name display
-        window.myPlayerName = name;
-        document.getElementById('user-name').innerText = name;
-        
-        // Trigger explosion animation
-        document.querySelector('.tl').classList.add('throw-tl');
-        document.querySelector('.tr').classList.add('throw-tr');
-        document.querySelector('.bl').classList.add('throw-bl');
-        document.querySelector('.br').classList.add('throw-br');
-
-        // Throw buttons with gravity
-        const buttonContainer = document.getElementById('custom-button-container');
-        buttonContainer.classList.add('throwing');
-        buttonContainer.style.display = 'none';
-        
-        // Reveal Setup Menu
-        const setup = document.getElementById('setup-section');
-        setTimeout(() => {
-          setup.classList.add('opacity-100', 'scale-100');
-        }, 400);
-      };
-    }
-
-    // Gravity physics simulation
-    function applyGravity(element) {
-      const gravity = 0.2; // Gravity acceleration
-      const initialVelocity = -15; // Upward throw velocity
-      const bounceElasticity = 0.6; // How much energy bounces retain
-      
-      let velocity = initialVelocity;
-      let position = 0;
-      let isMoving = true;
-      let bounceCount = 0;
-      const maxBounces = 2;
-      const maxFallDistance = 500;
-      
-      const animate = () => {
-        if (!isMoving) return;
-        
-        // Apply gravity to velocity
-        velocity += gravity;
-        
-        // Update position
-        position += velocity;
-        
-        // Calculate opacity based on fall distance
-        const opacity = Math.max(0, 1 - (position / maxFallDistance));
-        
-        // Apply transform and opacity
-        element.style.transform = `translateY(${position}px)`;
-        element.style.opacity = opacity;
-        
-        // Bounce logic
-        if (position > 400 && bounceCount < maxBounces) {
-          velocity *= -bounceElasticity;
-          bounceCount++;
-        }
-        
-        // Stop animation after falling enough
-        if (position > maxFallDistance || bounceCount >= maxBounces) {
-          element.style.transform = `translateY(${maxFallDistance}px)`;
-          element.style.opacity = 0;
-          isMoving = false;
-          return;
-        }
-        
-        requestAnimationFrame(animate);
-      };
-      
-      animate();
-    }
-  </script>
 </body>
 </html>

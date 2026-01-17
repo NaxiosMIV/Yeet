@@ -36,7 +36,7 @@ export function updateLeaderboard(playersObj) {
           ${isMe ? '<span class="absolute -top-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>' : ''}
         </div>
         <div>
-          <span class="font-bold text-slate-900 block leading-tight">${isMe ? 'You' : player.name}</span>
+          <span class="font-bold text-slate-900 block leading-tight">${isMe ? player.name+'(You)' : player.name}</span>
           <span class="text-[11px] text-slate-500 font-bold uppercase">${player.score} pts</span>
         </div>
       </div>
