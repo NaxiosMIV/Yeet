@@ -1,4 +1,6 @@
 import { renderCanvas, screenToWorld, camera } from "./RenderCanvas.js";
+import { updateLeaderboard } from "./UIManager.js";
+
 const startScreen = document.getElementById("start-screen");
 const gameScreen = document.getElementById("game-ui");
 
@@ -88,19 +90,30 @@ document.getElementById('reset-cam').addEventListener('click', () => {
 });
 
 function joinGame(room, name) {
+  let myPlayerId = null;
   startScreen.classList.add("hidden");
   gameScreen.classList.remove("hidden");
 
   const protocol = location.protocol === "https:" ? "wss" : "ws";
   globalWs = new WebSocket(
     `${protocol}://${location.host}/ws?room=${room}&name=${name}`
-  );
+    );
 
   globalWs.onmessage = (e) => {
+    
     const data = JSON.parse(e.data);
+    // console.log(data);
     if (!data.state) return; 
+
+    if (data.type === "INIT") {
+      window.myPlayerId = data.playerId; 
+      // console.log("Logged in as:", window.myPlayerId);
+      myPlayerId = data.playerId;
+    }
+
     window.lastKnownState = data.state;
     renderCanvas(window.lastKnownState);
+    updateLeaderboard(window.lastKnownState.players, myPlayerId);
   };
 }
 

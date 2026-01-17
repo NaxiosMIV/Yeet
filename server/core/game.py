@@ -15,7 +15,7 @@ def create_room():
             {'x': 4, 'y': 1, 'letter': 'F'}
         ],
         "current_player": 0,
-        "players": []
+        "players": {}
     }
 
 async def broadcast(room, message):
