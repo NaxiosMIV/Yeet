@@ -1,16 +1,13 @@
-from fastapi import APIRouter, HTTPException, Body, Response
+from fastapi import APIRouter, HTTPException, Body, Response, Request
 from google.oauth2 import id_token
 from google.auth.transport import requests
 from dotenv import load_dotenv
 from core.providers.google import verify_google_token
 from core.providers.kakao import verify_kakao_token
 from core.providers.guest import create_guest_user
-from core.auth_utils import create_access_token
+from core.auth_utils import create_access_token, decode_access_token
 import os
-from core.database import get_or_create_user
-
-load_dotenv()
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+from core.database import get_or_create_user, get_user_by_uuid
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -31,12 +28,24 @@ def delete_auth_cookie(response: Response):
 
 @router.get("/config")
 async def get_config():
+    load_dotenv()
     return {
-        "google_client_id": GOOGLE_CLIENT_ID
+        "google_client_id": os.getenv("GOOGLE_CLIENT_ID")
+
     }
 
 @router.post("/login/{provider}")
-async def login(provider: str, response: Response, token: str = Body(..., embed=True)):
+async def login(provider: str, response: Response, request: Request, token: str = Body(None, embed=True)):
+    # 이미 유효한 세션 쿠키가 있는 경우 (특히 게스트 로그인의 경우) 바로 통과
+    session_id = request.cookies.get("session_id")
+    if session_id:
+        payload = decode_access_token(session_id)
+        if isinstance(payload, dict):
+            user_uuid = payload.get("user_uuid")
+            user = await get_user_by_uuid(user_uuid)
+            if user:
+                return {"status": "success", "user": user}
+
     user_info = None
     if provider == "google":
         user_info = await verify_google_token(token)
