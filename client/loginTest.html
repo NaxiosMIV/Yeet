@@ -58,6 +58,7 @@
     <script>
         async function handleCredentialResponse(response) {
             document.getElementById('token-display').style.display = 'block';
+            document.getElementById('token-text').textContent = response.credential;
 
             try {
                 const backendResponse = await fetch('/auth/login/google', {
@@ -67,7 +68,7 @@
                     },
                     body: JSON.stringify({ token: response.credential })
                 });
-
+                console.log(backendResponse);
                 const result = await backendResponse.json();
 
                 if (backendResponse.ok) {

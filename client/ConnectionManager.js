@@ -45,14 +45,10 @@ const init = async () => {
 
 const checkExistingSession = async () => {
   try {
-    const response = await fetch('/auth/login/guest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: null })
-    });
+    const response = await fetch('/auth/me');
     const result = await response.json();
     if (response.ok && result.status === "success") {
-      handleLoginSuccess(result.user, true);
+      handleLoginSuccess(result.user.name, true);
     }
   } catch (error) {
     console.error("Session check failed:", error);
@@ -83,19 +79,13 @@ const setupUIEvents = () => {
       });
       const result = await response.json();
       if (response.ok) {
-        handleLoginSuccess(result.user, false);
+        handleLoginSuccess(result.user.name, false);
       } else {
         alert("Guest login failed");
       }
     } catch (error) {
       console.error("Guest login error:", error);
     }
-    elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[#6366F1]";
-    elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-400";
-  };
-
-  elements.guestBtn.onclick = () => {
-    handleLoginSuccess("Guest_" + Math.floor(Math.random() * 9000 + 1000), false);
   };
 
   // Color Picker Logic
@@ -133,8 +123,9 @@ const initGoogleIdentity = async () => {
         body: JSON.stringify({ token: response.credential })
       });
       const result = await backendResponse.json();
+      console.log(result);
       if (backendResponse.ok) {
-        handleLoginSuccess(result.user, true);
+        handleLoginSuccess(result.user.name, true);
       } else {
         console.error("Google login backend failure:", result);
       }
@@ -155,7 +146,7 @@ const initGoogleIdentity = async () => {
         google.accounts.id.initialize({
           client_id: config.google_client_id,
           callback: window.handleCredentialResponse,
-          use_fedcm_for_prompt: false
+          use_fedcm_for_prompt: true
         });
         google.accounts.id.renderButton(elements.googleContainer, {
           theme: "outline", size: "large", width: "250", shape: "pill"
@@ -200,7 +191,7 @@ function joinGame(room, name) {
 
   globalWs.onmessage = (e) => {
     const data = JSON.parse(e.data);
-    
+
     if (!data.state) return;
     if (data.type === "INIT") window.myPlayerId = data.playerId;
 

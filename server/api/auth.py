@@ -31,8 +31,24 @@ async def get_config():
     load_dotenv()
     return {
         "google_client_id": os.getenv("GOOGLE_CLIENT_ID")
-
     }
+
+@router.get("/me")
+async def get_me(request: Request):
+    session_id = request.cookies.get("session_id")
+    if not session_id:
+        raise HTTPException(status_code=401, detail="세션이 없습니다.")
+    
+    payload = decode_access_token(session_id)
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=401, detail="유효하지 않은 세션입니다.")
+    
+    user_uuid = payload.get("user_uuid")
+    user = await get_user_by_uuid(user_uuid)
+    if not user:
+        raise HTTPException(status_code=401, detail="사용자를 찾을 수 없습니다.")
+    
+    return {"status": "success", "user": user}
 
 @router.post("/login/{provider}")
 async def login(provider: str, response: Response, request: Request, token: str = Body(None, embed=True)):
