@@ -6,12 +6,18 @@ from api.routes import router as api_router
 from websocket.handlers import handle_websocket
 from core.database import init_db
 from core.game import RoomManager
+from core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Server is starting up...")
     await init_db() 
     await load_words_to_memory()
+    logger.info("Database and words loaded.")
     yield
+    logger.info("Server is shutting down...")
 
 app = FastAPI(lifespan=lifespan)
 
@@ -21,6 +27,7 @@ app.include_router(api_router)
 
 @app.get("/health")
 async def health_check():
+    logger.info("Health check requested")
     return {"status": "ok"}
 
 @app.websocket("/ws")

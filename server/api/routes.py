@@ -3,6 +3,9 @@ from fastapi.responses import FileResponse
 from core.words import get_word_in_cache
 from .auth import router as auth_router
 from core.database import get_user_by_uuid
+from core.logging_config import get_logger
+
+logger = get_logger(__name__)
 from .rooms import router as rooms_router
 
 router = APIRouter()

@@ -3,6 +3,9 @@ from core.game import room_manager, Player
 from core.auth_utils import decode_access_token
 import uuid
 import asyncio
+from core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 async def handle_websocket(ws: WebSocket):
     room_code = ws.query_params.get("room")
@@ -42,9 +45,7 @@ async def handle_websocket(ws: WebSocket):
                 x, y, letter = data["x"], data["y"], data["letter"]
                 success, error_message = await room.handle_place_tile(x, y, letter, user_uuid)
                 
-                if success:
-                    await room.broadcast({"type": "UPDATE", "state": room.get_state()})
-                else:
+                if not success:
                     await ws.send_json({"type": "ERROR", "message": error_message})
             
             elif data["type"] == "CHAT":

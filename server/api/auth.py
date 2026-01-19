@@ -7,10 +7,14 @@ from core.providers.guest import create_guest_user
 from core.auth_utils import create_access_token, decode_access_token
 import os
 from core.database import get_or_create_user, get_user_by_uuid
+from core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 def set_auth_cookie(response: Response, user_id: str):
+    logger.info(f"Setting auth cookie for user {user_id}")
     token = create_access_token({"user_uuid": str(user_id)})
     response.set_cookie(
         key="session_id",
@@ -23,6 +27,7 @@ def set_auth_cookie(response: Response, user_id: str):
     )
 
 def delete_auth_cookie(response: Response):
+    logger.info("Deleting auth cookie")
     response.delete_cookie("session_id")
 
 @router.get("/config")
@@ -51,7 +56,6 @@ async def get_me(request: Request):
 
 @router.post("/login/{provider}")
 async def login(provider: str, response: Response, request: Request, token: str = Body(None, embed=True)):
-    # 이미 유효한 세션 쿠키가 있는 경우 (특히 게스트 로그인의 경우) 바로 통과
     if request.cookies.get("session_id"):
         return await get_me(request)
 

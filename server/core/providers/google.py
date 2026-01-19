@@ -3,6 +3,9 @@ from google.oauth2 import id_token
 from google.auth.transport import requests
 from dotenv import load_dotenv
 import os
+from core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 load_dotenv()
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")

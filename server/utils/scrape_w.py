@@ -1,10 +1,13 @@
 import requests
 from bs4 import BeautifulSoup
 import json
+from core.logging_config import get_logger
+
+logger = get_logger(__name__)
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from server.core.config import WORDS_JSON_PATH, DATA_DIR
+from core.config import WORDS_JSON_PATH, DATA_DIR
 
 # 단어들을 웹에서 크롤링 해주는 파이썬 파일
 def get_words_from_page(url):
@@ -54,7 +57,7 @@ def scrape_words():
     max_workers = 5
     consecutive_empty = 0
     
-    print(f"Starting scrape from {base_url.format(1)}")
+    logger.info(f"Starting scrape from {base_url.format(1)}")
     
     while consecutive_empty < 3:
         urls = [base_url.format(p) for p in range(page, page + max_workers)]
@@ -81,10 +84,10 @@ def scrape_words():
         with open(WORDS_JSON_PATH, "w", encoding="utf-8") as f:
             json.dump(words_data, f, indent=4)
         
-        print(f"  Processed up to page {page-1}. Total words: {len(words_data)}. New in last batch: {new_words_in_batch}", end="\r")
+        logger.info(f"Processed up to page {page-1}. Total words: {len(words_data)}. New in last batch: {new_words_in_batch}")
         time.sleep(0.3)
         
-    print(f"\nFinal count: {len(words_data)} words saved to {WORDS_JSON_PATH}")
+    logger.info(f"Final count: {len(words_data)} words saved to {WORDS_JSON_PATH}")
 
 if __name__ == "__main__":
     scrape_words()

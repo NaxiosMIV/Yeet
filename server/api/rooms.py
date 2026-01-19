@@ -1,5 +1,8 @@
 from fastapi import APIRouter, Query
 from core.game import room_manager
+from core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 

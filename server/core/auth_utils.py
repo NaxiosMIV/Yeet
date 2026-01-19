@@ -2,6 +2,9 @@ import jwt
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
+from core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")

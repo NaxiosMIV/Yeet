@@ -1,9 +1,12 @@
 import json
 import asyncio
 import asyncpg
+from core.logging_config import get_logger
 from core.config import WORDS_JSON_PATH
 from dotenv import load_dotenv
 import os
+
+logger = get_logger(__name__)
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -11,17 +14,17 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 # data/words.json 파일의 단어들을 DB로 옮기는 함수
 # 서버 생성후 최초 1회만 시행하면 됨
 async def migrate_words():
-    print(f"Loading words from {WORDS_JSON_PATH}...")
+    logger.info(f"Loading words from {WORDS_JSON_PATH}...")
     try:
         if not WORDS_JSON_PATH.exists():
-            print("Error: words.json not found.")
+            logger.error("Error: words.json not found.")
             return
 
         with open(WORDS_JSON_PATH, "r") as f:
             word_data = json.load(f)
         
         values = [(word.upper(), info[0], info[1]) for word, info in word_data.items()]
-        print(f"Preparing to insert {len(values)} words...")
+        logger.info(f"Preparing to insert {len(values)} words...")
 
         conn = await asyncpg.connect(DATABASE_URL)
         try:
@@ -43,12 +46,12 @@ async def migrate_words():
                 columns=['word', 'length', 'score']
             )
 
-            print(f"Successfully migrated {len(values)} words to the database.")
+            logger.info(f"Successfully migrated {len(values)} words to the database.")
         finally:
             await conn.close()
 
     except Exception as e:
-        print(f"Error during migration: {e}")
+        logger.error(f"Error during migration: {e}")
 
 if __name__ == "__main__":
     asyncio.run(migrate_words())
