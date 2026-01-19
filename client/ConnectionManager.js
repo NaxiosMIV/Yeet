@@ -134,7 +134,7 @@ const setupUIEvents = () => {
   };
 
   elements.resetCam.onclick = () => {
-    camera.x = 0; camera.y = 0; camera.zoom = 40;
+    camera.x = 20; camera.y = 20; camera.zoom = 40;
     if (window.lastKnownState) renderCanvas(window.lastKnownState);
   };
 
