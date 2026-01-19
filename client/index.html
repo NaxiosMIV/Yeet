@@ -136,6 +136,11 @@
 
       <div id="setup-section"
         class="absolute inset-0 bg-white p-10 rounded-[2.5rem] shadow-xl flex flex-col justify-center opacity-0 scale-90 transition-all duration-700">
+        <button id="lobbyLogoutBtn"
+          class="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all font-bold text-xs">
+          <span class="material-icons-round text-md">logout</span>
+        </button>
+
         <div class="text-center mb-8">
           <h2 class="text-2xl font-display font-bold text-slate-900">Welcome, <span id="user-name"
               class="text-[#6366F1]">Player</span></h2>
@@ -150,9 +155,7 @@
             class="w-full rounded-xl p-4 bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-[#6366F1]"
             placeholder="Room Code" />
         </div>
-        <button id="startBtn"
-          class="w-full bg-[#6366F1] text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-[#4F46E5] transition-colors">Start
-          Game</button>
+        <button id="startBtn" class="w-full bg-[#6366F1] text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-[#4F46E5]">Start Game</button>
         <div id="color-picker-container" class="hidden mt-6 pt-4 border-t border-slate-100">
           <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Your Player
             Color</label>

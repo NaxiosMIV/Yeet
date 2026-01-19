@@ -21,13 +21,25 @@ const elements = {
   colorPickerContainer: document.getElementById("color-picker-container"),
   hueSlider: document.getElementById("hue-slider"),
   colorPreview: document.getElementById("color-preview"),
-  logoutBtn: document.getElementById("logoutBtn")
+  logoutBtn: document.getElementById("logoutBtn"),
+  lobbyLogoutBtn: document.getElementById("lobbyLogoutBtn")
 };
 
 let globalWs;
 let mode = "create";
 let selectedColor = "#6366F1"; // Default primary color
 window.myPlayerName = "Guest";
+
+function hslToHex(h, s, l) {
+  l /= 100;
+  const a = s * Math.min(l, 1 - l) / 100;
+  const f = n => {
+    const k = (n + h / 30) % 12;
+    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color).toString(16).padStart(2, '0');
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
 
 // --- STARTUP LOGIC ---
 const init = async () => {
@@ -60,14 +72,14 @@ const setupUIEvents = () => {
   elements.createTab.onclick = () => {
     mode = "create";
     elements.joinBox.classList.add("hidden");
-    elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[#6366F1]";
+    elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[var(--user-color)]";
     elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-400";
   };
 
   elements.joinTab.onclick = () => {
-    mode = "join";
+    mode = "join"; 
     elements.joinBox.classList.remove("hidden");
-    elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white dark:bg-slate-700 shadow text-[#6366F1]";
+    elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[var(--user-color)]";
     elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-500";
   };
 
@@ -90,14 +102,27 @@ const setupUIEvents = () => {
   };
 
   // Color Picker Logic
-  if (elements.hueSlider) {
-    elements.hueSlider.oninput = (e) => {
-      const hue = e.target.value;
-      // We use HSL for easier color math; 70% saturation and 60% lightness keeps it vibrant
-      selectedColor = `hsl(${hue}, 70%, 60%)`;
-      elements.colorPreview.style.backgroundColor = selectedColor;
-    };
-  }
+  elements.hueSlider.oninput = (e) => {
+    const hue = e.target.value;
+    const hexColor = hslToHex(hue, 70, 60);
+    
+    // Set the CSS variable on the document or a wrapper element
+    document.documentElement.style.setProperty('--user-color', hexColor);
+
+    // Update the preview and display name (standard styles are fine here)
+    selectedColor = `hsl(${hue}, 70%, 60%)`;
+    elements.colorPreview.style.backgroundColor = selectedColor;
+    elements.userDisplayName.style.color = selectedColor;
+
+    // Re-apply the base Tailwind classes (the variable will handle the color)
+    elements.startBtn.className = "w-full bg-[var(--user-color)] text-white py-4 rounded-2xl font-bold shadow-lg";
+    
+    if (mode === "create") {
+      elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[var(--user-color)]";
+    } else if (mode === "join") {
+      elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[var(--user-color)]";
+    }
+  };
 
   elements.startBtn.onclick = () => {
     const room = mode === "create" ?
@@ -109,10 +134,13 @@ const setupUIEvents = () => {
   };
 
   elements.resetCam.onclick = () => {
-    camera.x = 0; camera.y = 0; camera.zoom = 40;
+    camera.x = 20; camera.y = 20; camera.zoom = 40;
     if (window.lastKnownState) renderCanvas(window.lastKnownState);
   };
 
+  if (elements.lobbyLogoutBtn) {
+    elements.lobbyLogoutBtn.onclick = handleLogout;
+  }
   if (elements.logoutBtn) {
     elements.logoutBtn.onclick = handleLogout;
   }

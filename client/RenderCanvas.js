@@ -1,7 +1,7 @@
 const canvas = document.getElementById("game-canvas");
 
 export const camera = {
-  x: 0, y: 0, zoom: 40, 
+  x: 20, y: 20, zoom: 40, 
   isDragging: false, wasDragging: false,
   lastMouseX: 0, lastMouseY: 0,
   mouseX: 0, mouseY: 0 // Track mouse for the ghost letter
@@ -135,6 +135,6 @@ window.addEventListener('mouseup', () => {
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
   const delta = e.deltaY > 0 ? 0.9 : 1.1;
-  camera.zoom = Math.min(Math.max(camera.zoom * delta, 5), 300);
+  camera.zoom = Math.min(Math.max(camera.zoom * delta, 5), 50);
   renderCanvas(window.lastKnownState || { board: [] });
 }, { passive: false });
