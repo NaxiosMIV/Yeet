@@ -75,12 +75,12 @@ class GameRoom:
             "room_code": self.room_code
         }
 
-    def place_tile(self, x: int, y: int, letter: str, player_id: str, points: int):
+    def place_tile(self, x: int, y: int, letter: str, player_id: str, points: int, color: str = None):
         # 타일 존재 여부 체크 (보드 및 대기열)
         if any(t for t in self.board if t['x'] == x and t['y'] == y):
             return False
         
-        self.board.append({'x': x, 'y': y, 'letter': letter})
+        self.board.append({'x': x, 'y': y, 'letter': letter, 'color': color})
         if player_id in self.players:
             self.players[player_id].score += points
         return True
@@ -111,9 +111,9 @@ class GameRoom:
         find_in_dir(-1)
         return found_groups
 
-    async def handle_place_tile(self, x: int, y: int, letter: str, player_id: str):
+    async def handle_place_tile(self, x: int, y: int, letter: str, player_id: str, color: str = None):
         """타일을 대기열에 추가하고 가로/세로 타이머를 처리합니다. 병합 로직 포함."""
-        logger.debug(f"handle_place_tile: x={x}, y={y}, letter={letter}, player={player_id}")
+        logger.debug(f"handle_place_tile: x={x}, y={y}, letter={letter}, player={player_id}, color={color}")
         if any(t for t in self.board if t['x'] == x and t['y'] == y) or \
            any(t for t in self.pending_tiles if t['x'] == x and t['y'] == y):
             return False, "Tile already exists at this position"
@@ -148,6 +148,7 @@ class GameRoom:
         self.pending_tiles.append({
             'x': x, 'y': y, 'letter': letter, 
             'player_id': player_id, 
+            'color': color,
             'h_group_id': h_group_id, 
             'v_group_id': v_group_id
         })
@@ -200,7 +201,7 @@ class GameRoom:
             # (다른 방향 검증 결과와 상관없이 이 방향으로 유효하다면 보드로 이동)
             for gt in group_tiles:
                 # 보드에 타일 영구 배치
-                if self.place_tile(gt['x'], gt['y'], gt['letter'], gt['player_id'], 10):
+                if self.place_tile(gt['x'], gt['y'], gt['letter'], gt['player_id'], 10, gt.get('color')):
                     # 점수 추가 (단어 점수)
                     if gt['player_id'] in self.players:
                         self.players[gt['player_id']].score += result['score'] // len(group_tiles)
@@ -239,11 +240,6 @@ class GameRoom:
             self.group_timers[key].cancel()
             direction, group_id = key.split(':')
             await self.finalize_pending_group(group_id, direction)
-
-        players_data = {pid: p.to_dict() for pid, p in self.players.items()}
-        game_id = await save_game_result(self.room_code, players_data)
-        self.status = "FINISHED"
-        return game_id
 
         players_data = {pid: p.to_dict() for pid, p in self.players.items()}
         game_id = await save_game_result(self.room_code, players_data)

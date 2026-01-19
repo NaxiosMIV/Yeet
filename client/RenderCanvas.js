@@ -161,6 +161,28 @@ function render_textbox(ctx, state, startX, endX, startY, endY, cellSize) {
       ctx.fillText(cell.letter.toUpperCase(), cx, cy);
     }
   });
+
+  // 2. Render Pending Tiles (Optimistic or from Server)
+  (state.pending_tiles || []).forEach(cell => {
+    if (cell.x >= startX && cell.x <= endX && cell.y >= startY && cell.y <= endY) {
+      const cx = cell.x * cellSize + cellSize / 2;
+      const cy = cell.y * cellSize + cellSize / 2;
+
+      // Render pending tiles with lower opacity and possibly a dashed border
+      const tileColor = cell.color || "#4f46e5";
+      ctx.save();
+      ctx.globalAlpha = 0.5; // Lower opacity for pending
+      ctx.fillStyle = tileColor;
+      ctx.beginPath();
+      ctx.roundRect(cell.x * cellSize + 4, cell.y * cellSize + 4, cellSize - 8, cellSize - 8, 6);
+      ctx.fill();
+
+      ctx.globalAlpha = 1.0;
+      ctx.fillStyle = "white";
+      ctx.fillText(cell.letter.toUpperCase(), cx, cy);
+      ctx.restore();
+    }
+  });
 }
 
 export function screenToWorld(screenX, screenY, rect) {
