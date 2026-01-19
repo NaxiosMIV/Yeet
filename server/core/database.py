@@ -153,3 +153,16 @@ async def get_user_by_uuid(user_uuid: str):
         return None
     finally:
         await conn.close()
+
+async def update_user_color_hue(user_uuid: str, color_hue: int):
+    conn = await get_db_connection()
+    try:
+        await conn.execute("""
+            UPDATE users SET color_hue = $1, updated_at = CURRENT_TIMESTAMP WHERE user_uuid = $2::uuid
+        """, color_hue, user_uuid)
+        return True
+    except Exception as e:
+        logger.error(f"Database error in update_user_color_hue: {e}")
+        return False
+    finally:
+        await conn.close()
