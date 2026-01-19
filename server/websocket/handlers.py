@@ -10,6 +10,7 @@ logger = get_logger(__name__)
 async def handle_websocket(ws: WebSocket):
     room_code = ws.query_params.get("room")
     name = ws.query_params.get("name") or "Guest"
+    user_color = ws.query_params.get("color") or "#6366F1"
     
     if not room_code:
         await ws.close()
@@ -32,6 +33,7 @@ async def handle_websocket(ws: WebSocket):
     # Get room and add player
     room = room_manager.get_or_create_room(room_code)
     player = Player(user_uuid, name, ws)
+    player.color = user_color
     room.add_player(player)
 
     # Init hand
@@ -44,9 +46,20 @@ async def handle_websocket(ws: WebSocket):
     try:
         while True:
             data = await ws.receive_json()
-            logger.debug(f"WebSocket message received: {data.get('type')}")
+            
+            # Recalculate host status for every command to handle host migration
+            player_ids = list(room.players.keys())
+            is_host = player_ids[0] == user_uuid if player_ids else False
+            
+            if data["type"] == "START_GAME":
+                if is_host:
+                    room.start_match()
+                    await room.broadcast({"type": "GAME_STARTED"})
+                    await room.broadcast_state()
+                else:
+                    await ws.send_json({"type": "ERROR", "message": "Only the host can start."})     
 
-            if data["type"] == "PLACE":
+            elif data["type"] == "PLACE":
                 x, y, letter = data["x"], data["y"], data["letter"]
                 color = data.get("color", "#4f46e5")
                 success, error_message = await room.handle_place_tile(x, y, letter, user_uuid, color)
@@ -83,6 +96,7 @@ async def handle_websocket(ws: WebSocket):
     except WebSocketDisconnect:
         logger.debug(f"WebSocket disconnected: {user_uuid}")
         room.remove_player(user_uuid)
-        await room.broadcast({"type": "UPDATE", "state": room.get_state()})
+        # If the host disconnected, the next broadcast will show a new host
+        await room.broadcast_state()
         if not room.players:
             room_manager.remove_room(room_code)

@@ -156,7 +156,7 @@
             placeholder="Room Code" />
         </div>
         <button id="startBtn" class="w-full bg-[#6366F1] text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-[#4F46E5]">Start Game</button>
-        <div id="color-picker-container" class="hidden mt-6 pt-4 border-t border-slate-100">
+        <div id="color-picker-container" class="hidden mt-6 border-t border-slate-100">
           <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Your Player
             Color</label>
           <div class="relative flex items-center gap-4">
@@ -188,6 +188,48 @@
           class="pointer-events-auto w-[250px] py-3 bg-slate-100 text-slate-600 rounded-full
                                           font-semibold border border-slate-200 shadow-sm active:scale-95 transition-transform">Join as
           Guest</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="lobby-screen" class="hidden fixed inset-0 z-[80] bg-slate-50 flex items-center justify-center p-6">
+    <div class="w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl p-10 flex flex-col h-[600px]">
+      <div class="flex justify-between items-center mb-8">
+        <div>
+          <h2 class="text-3xl font-bold text-slate-900">Game Lobby</h2>
+          <p class="text-slate-400 font-medium">Waiting for players...</p>
+        </div>
+        <div class="bg-indigo-50 px-4 py-2 rounded-2xl border border-indigo-100">
+          <span class="text-[10px] font-bold text-indigo-400 uppercase tracking-widest block">Room Code</span>
+          <span id="lobby-room-code" class="text-2xl font-mono font-bold text-indigo-600">----</span>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto mb-8 pr-2">
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4 block">Players Joined</label>
+        <div id="lobby-player-list" class="grid grid-cols-2 gap-4">
+          </div>
+      </div>
+
+      <div class="border-t border-slate-100 pt-8 flex gap-4">
+        <div class="flex-1">
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Game Mode</label>
+          
+          <select id="lobby-settings-mode" class="hidden w-full rounded-xl border-slate-200 text-sm font-bold bg-slate-50">
+              <option value="classic">Classic</option>
+              <option value="blitz">Blitz</option>
+          </select>
+
+          <div id="lobby-mode-text" class="hidden px-4 py-2.5 bg-slate-100 rounded-xl text-sm font-bold text-slate-600 border border-slate-200">
+              Classic Royale
+          </div>
+        </div>
+        <button id="lobby-start-match-btn" class="hidden flex-[2] bg-[var(--user-color)] text-white rounded-2xl font-bold shadow-lg hover:brightness-95 transition-all">
+          Start Match
+        </button>
+        <div id="lobby-wait-msg" class="flex-[2] bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center font-bold text-sm italic">
+          Waiting for host...
+        </div>
       </div>
     </div>
   </div>
