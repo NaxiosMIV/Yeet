@@ -21,7 +21,8 @@ const elements = {
   colorPickerContainer: document.getElementById("color-picker-container"),
   hueSlider: document.getElementById("hue-slider"),
   colorPreview: document.getElementById("color-preview"),
-  logoutBtn: document.getElementById("logoutBtn")
+  logoutBtn: document.getElementById("logoutBtn"),
+  lobbyLogoutBtn: document.getElementById("lobbyLogoutBtn")
 };
 
 let globalWs;
@@ -71,14 +72,14 @@ const setupUIEvents = () => {
   elements.createTab.onclick = () => {
     mode = "create";
     elements.joinBox.classList.add("hidden");
-    elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[#6366F1]";
+    elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[var(--user-color)]";
     elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-400";
   };
 
   elements.joinTab.onclick = () => {
     mode = "join"; 
     elements.joinBox.classList.remove("hidden");
-    elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[#6366F1]";
+    elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[var(--user-color)]";
     elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-500";
   };
 
@@ -137,6 +138,9 @@ const setupUIEvents = () => {
     if (window.lastKnownState) renderCanvas(window.lastKnownState);
   };
 
+  if (elements.lobbyLogoutBtn) {
+    elements.lobbyLogoutBtn.onclick = handleLogout;
+  }
   if (elements.logoutBtn) {
     elements.logoutBtn.onclick = handleLogout;
   }
