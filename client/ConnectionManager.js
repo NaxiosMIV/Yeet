@@ -20,7 +20,8 @@ const elements = {
   // New Color Picker Elements
   colorPickerContainer: document.getElementById("color-picker-container"),
   hueSlider: document.getElementById("hue-slider"),
-  colorPreview: document.getElementById("color-preview")
+  colorPreview: document.getElementById("color-preview"),
+  logoutBtn: document.getElementById("logoutBtn")
 };
 
 let globalWs;
@@ -135,6 +136,23 @@ const setupUIEvents = () => {
     camera.x = 0; camera.y = 0; camera.zoom = 40;
     if (window.lastKnownState) renderCanvas(window.lastKnownState);
   };
+
+  if (elements.logoutBtn) {
+    elements.logoutBtn.onclick = handleLogout;
+  }
+};
+
+const handleLogout = async () => {
+  try {
+    const response = await fetch('/auth/logout', { method: 'POST' });
+    if (response.ok) {
+      location.reload(); // Refresh to clear state and show login screen
+    } else {
+      console.error("Logout failed");
+    }
+  } catch (error) {
+    console.error("Logout error:", error);
+  }
 };
 
 const initGoogleIdentity = async () => {

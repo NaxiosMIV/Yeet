@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html class="light" lang="en">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,7 +8,8 @@
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Lexend:wght@700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Lexend:wght@700&display=swap"
+    rel="stylesheet" />
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
 
   <style>
@@ -21,29 +23,75 @@
       --tile-blue: #DBEAFE;
     }
 
-    .hidden { display: none; }
-    #explosion-viewport { perspective: 1000px; }
-    
-    .split-piece {
-      position: absolute; inset: 0; background: white; border-radius: 2.5rem;
-      z-index: 50; transition: transform 1.5s cubic-bezier(0.25, 1, 0.5, 1), opacity 1.5s ease;
-      overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+    .hidden {
+      display: none;
     }
 
-    .tl { clip-path: inset(0 50% 50% 0); }
-    .tr { clip-path: inset(0 0 50% 50%); }
-    .bl { clip-path: inset(50% 50% 0 0); }
-    .br { clip-path: inset(50% 0 0 50%); }
+    #explosion-viewport {
+      perspective: 1000px;
+    }
 
-    .throw-tl { transform: translate(-50%, -50%) rotate(-30deg) scale(0.5); opacity: 0; }
-    .throw-tr { transform: translate(50%, -50%) rotate(30deg) scale(0.5); opacity: 0; }
-    .throw-bl { transform: translate(-50%, 50%) rotate(-15deg) scale(0.5); opacity: 0; }
-    .throw-br { transform: translate(50%, 50%) rotate(15deg) scale(0.5); opacity: 0; }
+    .split-piece {
+      position: absolute;
+      inset: 0;
+      background: white;
+      border-radius: 2.5rem;
+      z-index: 50;
+      transition: transform 1.5s cubic-bezier(0.25, 1, 0.5, 1), opacity 1.5s ease;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+    }
 
-    .card-content { width: 400px; height: 400px; position: absolute; top: 0; left: 0; }
+    .tl {
+      clip-path: inset(0 50% 50% 0);
+    }
+
+    .tr {
+      clip-path: inset(0 0 50% 50%);
+    }
+
+    .bl {
+      clip-path: inset(50% 50% 0 0);
+    }
+
+    .br {
+      clip-path: inset(50% 0 0 50%);
+    }
+
+    .throw-tl {
+      transform: translate(-50%, -50%) rotate(-30deg) scale(0.5);
+      opacity: 0;
+    }
+
+    .throw-tr {
+      transform: translate(50%, -50%) rotate(30deg) scale(0.5);
+      opacity: 0;
+    }
+
+    .throw-bl {
+      transform: translate(-50%, 50%) rotate(-15deg) scale(0.5);
+      opacity: 0;
+    }
+
+    .throw-br {
+      transform: translate(50%, 50%) rotate(15deg) scale(0.5);
+      opacity: 0;
+    }
+
+    .card-content {
+      width: 400px;
+      height: 400px;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
 
     /* Leaderboard Styles */
-    #leaderboard { display: flex; flex-direction: column; gap: 12px; }
+    #leaderboard {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
 
     .leaderboard-item {
       transition: all 0.4s ease;
@@ -59,78 +107,116 @@
     }
 
     @keyframes pulse-border {
-      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.2); }
-      50% { transform: scale(1.02); box-shadow: 0 0 0 8px rgba(99, 102, 241, 0); }
-      100% { transform: scale(1); }
+      0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.2);
+      }
+
+      50% {
+        transform: scale(1.02);
+        box-shadow: 0 0 0 8px rgba(99, 102, 241, 0);
+      }
+
+      100% {
+        transform: scale(1);
+      }
     }
 
-    .score-pulse { animation: pulse-border 0.6s ease-out; z-index: 10; }
+    .score-pulse {
+      animation: pulse-border 0.6s ease-out;
+      z-index: 10;
+    }
   </style>
 </head>
 
 <body class="font-body bg-[#F8FAFC] min-h-screen overflow-hidden">
-  
+
   <div id="start-screen" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-50">
     <div id="explosion-viewport" class="relative w-[400px] h-[400px]">
-      
-      <div id="setup-section" class="absolute inset-0 bg-white p-10 rounded-[2.5rem] shadow-xl flex flex-col justify-center opacity-0 scale-90 transition-all duration-700">
+
+      <div id="setup-section"
+        class="absolute inset-0 bg-white p-10 rounded-[2.5rem] shadow-xl flex flex-col justify-center opacity-0 scale-90 transition-all duration-700">
         <div class="text-center mb-8">
-          <h2 class="text-2xl font-display font-bold text-slate-900">Welcome, <span id="user-name" class="text-[#6366F1]">Player</span></h2>
+          <h2 class="text-2xl font-display font-bold text-slate-900">Welcome, <span id="user-name"
+              class="text-[#6366F1]">Player</span></h2>
         </div>
         <div class="flex p-1 bg-slate-100 rounded-2xl mb-4">
-          <button id="createTab" class="flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[#6366F1]">Create</button>
+          <button id="createTab"
+            class="flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[#6366F1]">Create</button>
           <button id="joinTab" class="flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-400">Join</button>
         </div>
         <div id="joinBox" class="hidden mb-4">
-          <input id="roomInput" class="w-full rounded-xl p-4 bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-[#6366F1]" placeholder="Room Code" />
+          <input id="roomInput"
+            class="w-full rounded-xl p-4 bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-[#6366F1]"
+            placeholder="Room Code" />
         </div>
         <button id="startBtn" class="w-full bg-[#6366F1] text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-[#4F46E5]">Start Game</button>
         <div id="color-picker-container" class="hidden mt-6 pt-4 border-t border-slate-100">
-          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Your Player Color</label>
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Your Player
+            Color</label>
           <div class="relative flex items-center gap-4">
             <div id="color-preview" class="w-10 h-10 rounded-xl shadow-inner border-2 border-white bg-[#6366F1]"></div>
-            <input type="range" id="hue-slider" min="0" max="360" value="231" 
+            <input type="range" id="hue-slider" min="0" max="360" value="231"
               class="flex-1 h-3 rounded-lg appearance-none cursor-pointer outline-none"
               style="background: linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);">
           </div>
         </div>
       </div>
 
-      <div class="split-piece tl"><div class="card-content"></div></div>
-      <div class="split-piece tr"><div class="card-content"></div></div>
-      <div class="split-piece bl"><div class="card-content"></div></div>
-      <div class="split-piece br z-[60]"><div class="card-content"></div></div>
+      <div class="split-piece tl">
+        <div class="card-content"></div>
+      </div>
+      <div class="split-piece tr">
+        <div class="card-content"></div>
+      </div>
+      <div class="split-piece bl">
+        <div class="card-content"></div>
+      </div>
+      <div class="split-piece br z-[60]">
+        <div class="card-content"></div>
+      </div>
 
-      <div id="auth-overlay" class="absolute inset-0 z-[70] flex flex-col items-center justify-end pb-12 pointer-events-none">
+      <div id="auth-overlay"
+        class="absolute inset-0 z-[70] flex flex-col items-center justify-end pb-12 pointer-events-none">
         <div id="googleButtonContainer" class="pointer-events-auto mb-3"></div>
-        <button id="customGuestBtn" class="pointer-events-auto w-[250px] py-3 bg-slate-100 text-slate-600 rounded-full
-                                          font-semibold border border-slate-200 shadow-sm active:scale-95 transition-transform">Join as Guest</button>
+        <button id="customGuestBtn"
+          class="pointer-events-auto w-[250px] py-3 bg-slate-100 text-slate-600 rounded-full
+                                          font-semibold border border-slate-200 shadow-sm active:scale-95 transition-transform">Join as
+          Guest</button>
       </div>
     </div>
   </div>
 
   <div id="game-ui" class="hidden flex flex-col h-screen w-full">
     <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8">
-    <div class="flex items-center">
-      <h1 class="font-display font-bold text-xl uppercase tracking-tighter text-slate-900">
-        WordMasters <span class="text-[#6366F1]">Royale</span>
-      </h1>
-    </div>
+      <div class="flex items-center">
+        <h1 class="font-display font-bold text-xl uppercase tracking-tighter text-slate-900">
+          WordMasters <span class="text-[#6366F1]">Royale</span>
+        </h1>
+      </div>
 
-    <div class="flex items-center gap-4">
-      <div id="room-display" class="flex items-center bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
-        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-2">Room</span>
-        <span id="room-id-text" class="font-mono font-bold text-[#6366F1] tracking-wider">------</span>
+      <div class="flex items-center gap-4">
+        <div id="room-display" class="flex items-center bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-2">Room</span>
+          <span id="room-id-text" class="font-mono font-bold text-[#6366F1] tracking-wider">------</span>
+        </div>
+
+        <div class="h-8 w-[1px] bg-slate-200 mx-2"></div>
+
+        <div id="player-info" class="font-semibold text-slate-600 flex items-center gap-2">
+          <span class="material-icons-round text-slate-400">account_circle</span>
+          <span id="header-user-name">Guest</span>
+        </div>
+
+        <div class="h-8 w-[1px] bg-slate-200 mx-2"></div>
+
+        <button id="logoutBtn"
+          class="flex items-center gap-1.5 px-3 py-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all font-bold text-xs">
+          <span class="material-icons-round text-sm">logout</span>
+          <span>Logout</span>
+        </button>
       </div>
-      
-      <div class="h-8 w-[1px] bg-slate-200 mx-2"></div>
-      
-      <div id="player-info" class="font-semibold text-slate-600 flex items-center gap-2">
-        <span class="material-icons-round text-slate-400">account_circle</span>
-        <span id="header-user-name">Guest</span>
-      </div>
-    </div>
-  </header>
+    </header>
 
     <main class="flex flex-1 overflow-hidden">
       <aside class="w-80 border-r border-slate-200 bg-white p-6">
@@ -143,7 +229,8 @@
 
       <div class="flex-1 relative bg-[#F8FAFC]">
         <canvas id="game-canvas" class="w-full h-full"></canvas>
-        <button id="reset-cam" class="absolute bottom-6 right-6 p-3 bg-white border border-slate-200 text-slate-400 rounded-full shadow-md hover:text-[#6366F1]">
+        <button id="reset-cam"
+          class="absolute bottom-6 right-6 p-3 bg-white border border-slate-200 text-slate-400 rounded-full shadow-md hover:text-[#6366F1]">
           <span class="material-icons-round">center_focus_strong</span>
         </button>
       </div>
@@ -162,4 +249,5 @@
 
   <script type="module" src="/static/ConnectionManager.js"></script>
 </body>
+
 </html>

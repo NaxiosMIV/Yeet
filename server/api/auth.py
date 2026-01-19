@@ -70,3 +70,8 @@ async def login(provider: str, response: Response, request: Request, token: str 
     set_auth_cookie(response, user_uuid)
     
     return {"status": "success", "user": user_info["user"]}
+
+@router.post("/logout")
+async def logout(response: Response):
+    delete_auth_cookie(response)
+    return {"status": "success"}
