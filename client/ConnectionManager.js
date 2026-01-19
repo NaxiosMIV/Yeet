@@ -1,4 +1,4 @@
-import { renderCanvas, screenToWorld, camera } from "./RenderCanvas.js";
+import { renderCanvas, screenToWorld, camera, rackState } from "./RenderCanvas.js";
 import { updateLeaderboard } from "./UIManager.js";
 
 // DOM References
@@ -25,7 +25,7 @@ const elements = {
   lobbyLogoutBtn: document.getElementById("lobbyLogoutBtn")
 };
 
-let globalWs;
+export let globalWs;
 let mode = "create";
 let selectedColor = "#6366F1"; // Default primary color
 window.myPlayerName = "Guest";
@@ -291,18 +291,6 @@ function joinGame(room, name) {
   };
 }
 
-// Canvas Interaction
-elements.canvas.addEventListener('click', (e) => {
-  if (camera.wasDragging) return;
-  const rect = elements.canvas.getBoundingClientRect();
-  const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top, rect);
-  const char = prompt("Enter a letter:");
 
-  if (char && char.length === 1 && globalWs?.readyState === WebSocket.OPEN) {
-    globalWs.send(JSON.stringify({
-      type: "PLACE", x: worldPos.tileX, y: worldPos.tileY, letter: char.toUpperCase()
-    }));
-  }
-});
 
 init();
