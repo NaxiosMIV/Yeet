@@ -123,11 +123,15 @@ function render_grid(ctx, startX, endX, startY, endY, cellSize) {
     for (let y = startY; y <= endY; y++) {
       const px = x * cellSize;
       const py = y * cellSize;
-      ctx.fillStyle = "white";
-      ctx.fillRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
-      ctx.strokeStyle = "#e2e8f0";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(px, py, cellSize, cellSize);
+
+      // 1. Subtle Tile Background
+      // Using a very slight off-white/gray for a paper-like feel
+      ctx.fillStyle = "#f8fafc"; 
+      
+      // Draw rounded background for the grid slot
+      ctx.beginPath();
+      ctx.roundRect(px + 1.5, py + 1.5, cellSize - 3, cellSize - 3, 6);
+      ctx.fill();
     }
   }
 }
