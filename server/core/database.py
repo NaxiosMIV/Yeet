@@ -34,6 +34,17 @@ async def init_db():
                 UNIQUE (social_id, provider)
             );
         """)
+        #Make user stats table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS user_stats (
+                user_uuid UUID PRIMARY KEY REFERENCES users(user_uuid),
+                total_games INTEGER DEFAULT 0,
+                total_score INTEGER DEFAULT 0,
+                total_wins INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
         # Make games table
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS games (
