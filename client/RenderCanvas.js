@@ -1,12 +1,20 @@
+import { globalWs } from "./ConnectionManager.js";
 const canvas = document.getElementById("game-canvas");
+
+let isDraggingFromRack = false;
 
 export const camera = {
   x: 20, y: 20, zoom: 40,
   isDragging: false, wasDragging: false,
   lastMouseX: 0, lastMouseY: 0,
-  dragStartX: 0, dragStartY: 0, // Track start of drag
-  mouseX: 0, mouseY: 0, // Track mouse for the ghost letter
-  selectedTile: null // Track currently selected tile for keyboard input
+  mouseX: 0, mouseY: 0
+};
+
+export const rackState = {
+  tiles: ['A', 'S', 'P', 'L', 'Y', 'T'], // This should eventually come from the server
+  draggingIndex: -1,
+  dragX: 0,
+  dragY: 0
 };
 
 export function renderCanvas(state) {
@@ -33,7 +41,6 @@ export function renderCanvas(state) {
   const viewW = rect.width * (40 / camera.zoom);
   const viewH = rect.height * (40 / camera.zoom);
 
-  // Calculate grid bounds (works for negative values)
   const startX = Math.floor((camera.x - viewW / 2) / cellSize);
   const endX = Math.ceil((camera.x + viewW / 2) / cellSize);
   const startY = Math.floor((camera.y - viewH / 2) / cellSize);
@@ -42,18 +49,71 @@ export function renderCanvas(state) {
   render_grid(ctx, startX, endX, startY, endY, cellSize);
   render_textbox(ctx, state, startX, endX, startY, endY, cellSize);
 
-  // --- GHOST PREVIEW ---
+  // --- GHOST PREVIEW (Matches User Color) ---
   const ghost = screenToWorld(camera.mouseX, camera.mouseY, rect);
-  ctx.fillStyle = "rgba(79, 70, 229, 0.1)";
-  ctx.fillRect(ghost.tileX * cellSize, ghost.tileY * cellSize, cellSize, cellSize);
+  // Read the CSS variable we set in ConnectionManager.js
+  const userColor = getComputedStyle(document.documentElement).getPropertyValue('--user-color') || '#4f46e5';
 
-  // --- SELECTION HIGHLIGHT ---
-  const selection = window.selectedTile;
-  if (selection) {
-    ctx.strokeStyle = "#4f46e5";
-    ctx.lineWidth = 3;
-    ctx.strokeRect(selection.x * cellSize, selection.y * cellSize, cellSize, cellSize);
+  ctx.fillStyle = userColor;
+  ctx.globalAlpha = 0.2; // Keep it faint
+  ctx.fillRect(ghost.tileX * cellSize + 2, ghost.tileY * cellSize + 2, cellSize - 4, cellSize - 4);
+  ctx.globalAlpha = 1.0;
+
+  ctx.restore();
+
+  render_rack(ctx, rect, userColor);
+}
+
+function render_rack(ctx, rect, userColor) {
+  const tileCount = rackState.tiles.length;
+  const tileSize = 60;
+  const gap = 12;
+  const totalWidth = (tileCount * tileSize) + ((tileCount - 1) * gap);
+  const startX = (rect.width - totalWidth) / 2;
+  const rackY = rect.height - 100;
+
+  // Draw Rack Background Container
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+  ctx.shadowColor = "rgba(0,0,0,0.1)";
+  ctx.shadowBlur = 20;
+  ctx.beginPath();
+  ctx.roundRect(startX - 20, rackY - 20, totalWidth + 40, tileSize + 40, 24);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  rackState.tiles.forEach((letter, i) => {
+    if (i === rackState.draggingIndex) return; // Don't draw here if dragging
+
+    const x = startX + i * (tileSize + gap);
+    drawTile(ctx, x, rackY, tileSize, letter, false);
+  });
+
+  // Draw the tile currently being dragged
+  if (rackState.draggingIndex !== -1) {
+    drawTile(ctx, rackState.dragX - tileSize / 2, rackState.dragY - tileSize / 2, tileSize, rackState.tiles[rackState.draggingIndex], true);
   }
+}
+
+function drawTile(ctx, x, y, size, letter, isDragging) {
+  const userColor = getComputedStyle(document.documentElement).getPropertyValue('--user-color') || '#4f46e5';
+
+  ctx.save();
+  if (isDragging) {
+    ctx.shadowColor = "rgba(0,0,0,0.3)";
+    ctx.shadowBlur = 15;
+    ctx.scale(1.1, 1.1); // Make it pop while dragging
+  }
+
+  ctx.fillStyle = userColor; // Use the passed userColor
+  ctx.beginPath();
+  ctx.roundRect(x, y, size, size, 10);
+  ctx.fill();
+
+  ctx.font = `bold ${size * 0.5}px Lexend, sans-serif`;
+  ctx.fillStyle = "#431407"; // Dark wood/charcoal text
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(letter, x + size / 2, y + size / 2);
 
   ctx.restore();
 }
@@ -63,15 +123,10 @@ function render_grid(ctx, startX, endX, startY, endY, cellSize) {
     for (let y = startY; y <= endY; y++) {
       const px = x * cellSize;
       const py = y * cellSize;
-
-      // 1. Draw Tile Background
       ctx.fillStyle = "white";
       ctx.fillRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
-
-      // 2. Draw Tile Border
-      // Highlight the Axes (0,y and x,0) with a slightly darker color
       ctx.strokeStyle = "#e2e8f0";
-      ctx.lineWidth = 1
+      ctx.lineWidth = 1;
       ctx.strokeRect(px, py, cellSize, cellSize);
     }
   }
@@ -88,39 +143,26 @@ function render_textbox(ctx, state, startX, endX, startY, endY, cellSize) {
       const cx = cell.x * cellSize + cellSize / 2;
       const cy = cell.y * cellSize + cellSize / 2;
 
-      ctx.fillStyle = "#928dfa";
-      ctx.shadowColor = "rgba(0,0,0,0.15)";
-      ctx.shadowBlur = 5;
-      ctx.fillRect(cell.x * cellSize + 4, cell.y * cellSize + 4, cellSize - 8, cellSize - 8);
+      // --- DYNAMIC COLOR LOGIC ---
+      // Use cell.color (sent from server) or fallback to primary indigo
+      const tileColor = cell.color || "#4f46e5";
+
+      // Draw Letter Tile Background
+      ctx.fillStyle = tileColor;
+      ctx.shadowColor = "rgba(0,0,0,0.1)";
+      ctx.shadowBlur = 4;
+      ctx.beginPath();
+      ctx.roundRect(cell.x * cellSize + 4, cell.y * cellSize + 4, cellSize - 8, cellSize - 8, 6);
+      ctx.fill();
       ctx.shadowBlur = 0;
 
-      ctx.fillStyle = "#4f46e5";
-      ctx.fillText(cell.letter.toUpperCase(), cx, cy);
-    }
-  });
-
-  // 2. Render Pending Tiles (Optimistic or from Server)
-  (state.pending_tiles || []).forEach(cell => {
-    if (cell.x >= startX && cell.x <= endX && cell.y >= startY && cell.y <= endY) {
-      const cx = cell.x * cellSize + cellSize / 2;
-      const cy = cell.y * cellSize + cellSize / 2;
-
-      // Use a dashed look or lower opacity for pending
-      ctx.fillStyle = "rgba(146, 141, 250, 0.4)";
-      ctx.fillRect(cell.x * cellSize + 4, cell.y * cellSize + 4, cellSize - 8, cellSize - 8);
-
-      ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = "#4f46e5";
-      ctx.strokeRect(cell.x * cellSize + 4, cell.y * cellSize + 4, cellSize - 8, cellSize - 8);
-      ctx.setLineDash([]);
-
-      ctx.fillStyle = "rgba(79, 70, 229, 0.6)";
+      // Draw Letter Text (White looks best on colored backgrounds)
+      ctx.fillStyle = "white";
       ctx.fillText(cell.letter.toUpperCase(), cx, cy);
     }
   });
 }
 
-// Helper to convert screen pixels to tile coordinates
 export function screenToWorld(screenX, screenY, rect) {
   let x = (screenX - rect.width / 2) * (40 / camera.zoom) + camera.x;
   let y = (screenY - rect.height / 2) * (40 / camera.zoom) + camera.y;
@@ -130,20 +172,22 @@ export function screenToWorld(screenX, screenY, rect) {
   };
 }
 
-
+// ... (Mouse listeners remain the same)
 // Update mouse position for the ghost letter
 canvas.addEventListener('mousemove', (e) => {
   const rect = canvas.getBoundingClientRect();
   camera.mouseX = e.clientX - rect.left;
   camera.mouseY = e.clientY - rect.top;
 
-  if (camera.isDragging) {
-    const dx = e.clientX - camera.dragStartX;
-    const dy = e.clientY - camera.dragStartY;
-    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
-      camera.wasDragging = true;
-    }
-
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  if (isDraggingFromRack) {
+    rackState.dragX = mouseX;
+    rackState.dragY = mouseY;
+    renderCanvas(window.lastKnownState);
+  }
+  else if (camera.isDragging) {
+    camera.wasDragging = true;
     const factor = 40 / camera.zoom;
     camera.x -= (e.clientX - camera.lastMouseX) * factor;
     camera.y -= (e.clientY - camera.lastMouseY) * factor;
@@ -156,15 +200,61 @@ canvas.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('mousedown', (e) => {
-  camera.isDragging = true;
-  camera.wasDragging = false;
-  camera.lastMouseX = e.clientX;
-  camera.lastMouseY = e.clientY;
-  camera.dragStartX = e.clientX;
-  camera.dragStartY = e.clientY;
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+
+  // Check if clicking a tile in the rack
+  const tileCount = rackState.tiles.length;
+  const tileSize = 60;
+  const gap = 12;
+  const totalWidth = (tileCount * tileSize) + ((tileCount - 1) * gap);
+  const startX = (rect.width - totalWidth) / 2;
+  const rackY = rect.height - 100;
+
+  rackState.tiles.forEach((_, i) => {
+    const x = startX + i * (tileSize + gap);
+    if (mouseX >= x && mouseX <= x + tileSize && mouseY >= rackY && mouseY <= rackY + tileSize) {
+      rackState.draggingIndex = i;
+      isDraggingFromRack = true;
+    }
+  });
+
+  // If not rack, handle camera drag
+  if (!isDraggingFromRack) {
+    camera.isDragging = true;
+    camera.wasDragging = false;
+    camera.lastMouseX = e.clientX;
+    camera.lastMouseY = e.clientY;
+  }
 });
 
-window.addEventListener('mouseup', () => {
+window.addEventListener('mouseup', (e) => {
+  if (isDraggingFromRack) {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Convert release point to world coordinates
+    const worldPos = screenToWorld(mouseX, mouseY, rect);
+    const letter = rackState.tiles[rackState.draggingIndex];
+
+    // Send to Server
+    if (globalWs?.readyState === WebSocket.OPEN) {
+      globalWs.send(JSON.stringify({
+        type: "PLACE",
+        x: worldPos.tileX,
+        y: worldPos.tileY,
+        letter: letter.toUpperCase(),
+        color: getComputedStyle(document.documentElement).getPropertyValue('--user-color') || '#4f46e5'
+      }));
+    }
+
+    // Reset state
+    rackState.draggingIndex = -1;
+    isDraggingFromRack = false;
+    renderCanvas(window.lastKnownState);
+  }
   camera.isDragging = false;
 });
 
