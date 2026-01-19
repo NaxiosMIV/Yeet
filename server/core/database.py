@@ -2,6 +2,9 @@ import asyncpg
 from dotenv import load_dotenv
 from fastapi import HTTPException
 import os
+from core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -83,7 +86,7 @@ async def get_or_create_user(user_info: dict):
             """, user_info["social_id"], user_info["provider"], user_info.get("email"), user_info.get("name"), user_info.get("picture"))
         return user_uuid
     except Exception as e:
-        print(f"Database error in get_or_create_user: {e}")
+        logger.error(f"Database error in get_or_create_user: {e}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     finally:
         await conn.close()
@@ -115,7 +118,7 @@ async def save_game_result(room_code: str, players: dict):
             
         return game_id
     except Exception as e:
-        print(f"Database error in save_game_result: {e}")
+        logger.error(f"Database error in save_game_result: {e}")
         return None
     finally:
         await conn.close()
@@ -129,7 +132,7 @@ async def get_user_by_social_id(social_id: str, provider: str):
         """, social_id, provider)
         return dict(user) if user else None
     except Exception as e:
-        print(f"Database error in get_user_by_social_id: {e}")
+        logger.error(f"Database error in get_user_by_social_id: {e}")
         return None
     finally:
         await conn.close()
@@ -143,7 +146,7 @@ async def get_user_by_uuid(user_uuid: str):
         """, user_uuid)
         return dict(user) if user else None
     except Exception as e:
-        print(f"Database error in get_user_by_uuid: {e}")
+        logger.error(f"Database error in get_user_by_uuid: {e}")
         return None
     finally:
         await conn.close()

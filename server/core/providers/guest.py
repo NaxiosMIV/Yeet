@@ -1,5 +1,8 @@
 import uuid
 import random
+from core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 def create_guest_user(guest_id: str = None):
     # guest_id가 없으면 새로 생성

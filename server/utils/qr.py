@@ -1,4 +1,7 @@
 import qrcode
+from core.logging_config import get_logger
+
+logger = get_logger(__name__)
 import socket
 from core.config import PORT, BASE_DIR
 
@@ -20,8 +23,8 @@ def generate_qr(output_name="join_game_qr.png"):
     save_path = BASE_DIR / output_name
     img.save(save_path)
     
-    print(f"QR code generated for {url}")
-    print(f"Saved to: {save_path}")
+    logger.info(f"QR code generated for {url}")
+    logger.info(f"Saved to: {save_path}")
     return url
 
 if __name__ == "__main__":

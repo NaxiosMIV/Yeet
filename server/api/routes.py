@@ -2,9 +2,15 @@ from fastapi import APIRouter
 from fastapi.responses import FileResponse
 from core.words import get_word_in_cache
 from .auth import router as auth_router
+from core.database import get_user_by_uuid
+from core.logging_config import get_logger
+
+logger = get_logger(__name__)
+from .rooms import router as rooms_router
 
 router = APIRouter()
 router.include_router(auth_router)
+router.include_router(rooms_router)
 
 @router.get("/loginTest")
 async def loginTest():
@@ -17,6 +23,10 @@ async def chat_test():
 @router.get("/")
 async def index():
     return FileResponse("../client/index.html")
+
+@router.get("/get_user/{user_uuid}")
+async def get_user(user_uuid: str):
+    return get_user_by_uuid(user_uuid)
 
 @router.get("/get_word/{word}")
 async def get_word(word: str):

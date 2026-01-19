@@ -1,4 +1,8 @@
 from core.database import get_db_connection
+from core.logging_config import get_logger
+import random
+
+logger = get_logger(__name__)
 
 word_cache = {}
 
@@ -13,7 +17,7 @@ async def load_words_to_memory():
 
         return word_cache
     except Exception as e:
-        print(f"데이터 로드 중 오류 발생: {e}")
+        logger.error(f"데이터 로드 중 오류 발생: {e}")
         return {}
 
 def get_word_in_cache(word: str):
@@ -27,3 +31,9 @@ def get_word_in_cache(word: str):
             "score": score
         }
     return {"is_valid": False, "word": upper_word}
+
+def get_random_word(min_length: int = 6):
+    eligible_words = [word for word, (length, score) in word_cache.items() if length >= min_length]
+    if not eligible_words:
+        return None
+    return random.choice(eligible_words)
