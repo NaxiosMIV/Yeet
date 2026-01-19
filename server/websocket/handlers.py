@@ -34,6 +34,9 @@ async def handle_websocket(ws: WebSocket):
     player = Player(user_uuid, name, ws)
     room.add_player(player)
 
+    # Init hand
+    room.draw_tiles_for_player(user_uuid, 7)
+
     # Initial Init & Broadcast
     await ws.send_json({"type": "INIT", "playerId": user_uuid, "state": room.get_state()})
     await room.broadcast({"type": "UPDATE", "state": room.get_state()})
@@ -50,6 +53,13 @@ async def handle_websocket(ws: WebSocket):
                 
                 if not success:
                     await ws.send_json({"type": "ERROR", "message": error_message})
+            
+            elif data["type"] == "DRAW":
+                count = data.get("count", 1)
+                new_tiles = room.draw_tiles_for_player(user_uuid, count)
+                await ws.send_json({"type": "DRAWN_TILES", "tiles": new_tiles})
+                # Broadcast updated player state (hand changed)
+                await room.broadcast({"type": "UPDATE", "state": room.get_state()})
             
             elif data["type"] == "CHAT":
                 message = data.get("message", "")

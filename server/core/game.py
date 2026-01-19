@@ -4,6 +4,7 @@ import time
 import asyncio
 import uuid
 from core.words import get_word_in_cache, get_random_word
+from core.tiles import generate_weighted_tiles
 from core.database import save_game_result
 from core.logging_config import get_logger
 
@@ -16,13 +17,15 @@ class Player:
         self.websocket = websocket
         self.score = 0
         self.color = "#6366F1" # Default color
+        self.hand: List[str] = []
         logger.debug(f"Player created: {self.name} ({self.player_id})")
 
     def to_dict(self):
         return {
             "name": self.name,
             "score": self.score,
-            "color": self.color
+            "color": self.color,
+            "hand": self.hand
         }
 
 class GameRoom:
@@ -56,6 +59,15 @@ class GameRoom:
         if player_id in self.players:
             del self.players[player_id]
 
+    def draw_tiles_for_player(self, player_id: str, count: int) -> List[str]:
+        if player_id not in self.players:
+            return []
+        
+        new_tiles = generate_weighted_tiles(count)
+        self.players[player_id].hand.extend(new_tiles)
+        logger.debug(f"Player {player_id} drew {count} tiles: {new_tiles}")
+        return new_tiles
+
     async def broadcast(self, message: dict):
         logger.debug(f"Broadcasting message type {message.get('type')} to {len(self.players)} players in {self.room_code}")
         # 플레이어들에게 메시지 비동기 전송
@@ -80,6 +92,16 @@ class GameRoom:
         if any(t for t in self.board if t['x'] == x and t['y'] == y):
             return False
         
+        # Check hand
+        if player_id in self.players:
+            player = self.players[player_id]
+            if letter.upper() not in player.hand:
+                logger.warning(f"Player {player.name} tried to place {letter} but they don't have it in hand: {player.hand}")
+                return False
+            
+            # Remove from hand
+            player.hand.remove(letter.upper())
+
         self.board.append({'x': x, 'y': y, 'letter': letter, 'color': color})
         if player_id in self.players:
             self.players[player_id].score += points
