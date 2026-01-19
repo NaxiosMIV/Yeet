@@ -1,4 +1,4 @@
-import { renderCanvas, screenToWorld, camera, rackState } from "./RenderCanvas.js";
+import { renderCanvas, screenToWorld, camera, rackState, render_pending } from "./RenderCanvas.js";
 import { updateLeaderboard } from "./UIManager.js";
 
 // DOM References
@@ -22,7 +22,75 @@ const elements = {
   hueSlider: document.getElementById("hue-slider"),
   colorPreview: document.getElementById("color-preview"),
   logoutBtn: document.getElementById("logoutBtn"),
-  lobbyLogoutBtn: document.getElementById("lobbyLogoutBtn")
+  lobbyLogoutBtn: document.getElementById("lobbyLogoutBtn"),
+  lobbyWaitMsg: document.getElementById("lobby-wait-msg"),
+  lobbyStartBtn: document.getElementById("lobby-start-match-btn"),
+  lobbyPlayerList: document.getElementById("lobby-player-list"),
+  lobbyScreen: document.getElementById("lobby-screen")
+};
+
+function updateLobbyUI(state) {
+    elements.lobbyPlayerList.innerHTML = "";
+    
+    const playerIds = Object.keys(state.players);
+    
+    const isHost = playerIds[0] === window.myPlayerId;
+
+    // Elements for toggling
+    const modeSelect = document.getElementById("lobby-settings-mode");
+    const modeText = document.getElementById("lobby-mode-text");
+
+    if (isHost) {
+        // HOST VIEW: Show the interactive dropdown and start button
+        elements.lobbyStartBtn.classList.remove("hidden");
+        elements.lobbyWaitMsg.classList.add("hidden");
+        
+        modeSelect.classList.remove("hidden");
+        modeText.classList.add("hidden");
+    } else {
+        // GUEST VIEW: Show read-only text and waiting message
+        elements.lobbyStartBtn.classList.add("hidden");
+        elements.lobbyWaitMsg.classList.remove("hidden");
+
+        modeSelect.classList.add("hidden");
+        modeText.classList.remove("hidden");
+        
+        // Sync the text with whatever the host has currently selected (from state)
+        const currentMode = state.settings?.mode || 'classic';
+        modeText.innerText = currentMode.charAt(0).toUpperCase() + currentMode.slice(1);
+    }
+
+    // Render player list...
+  playerIds.forEach(id => {
+        const p = state.players[id];
+        const isThisPlayerHost = id === playerIds[0];
+        const item = document.createElement("div");
+        item.className = "flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all";
+        item.innerHTML = `
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl border-2 border-white shadow-sm" style="background-color: ${p.color || '#6366F1'}"></div>
+                <div class="flex flex-col">
+                    <span class="font-bold text-slate-700 text-sm">${p.name} ${id === window.myPlayerId ? '<span class="text-[10px] text-indigo-400 font-medium ml-1">(You)</span>' : ''}</span>
+                    <span class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">${isThisPlayerHost ? 'Room Leader' : 'Player'}</span>
+                </div>
+            </div>
+            ${isThisPlayerHost ? '<span class="material-icons-round text-amber-400 text-sm">stars</span>' : ''}
+        `;
+        elements.lobbyPlayerList.appendChild(item);
+    });
+}
+
+// Event listener for the actual match start
+elements.lobbyStartBtn.onclick = () => {
+    if (globalWs && globalWs.readyState === WebSocket.OPEN) {
+        globalWs.send(JSON.stringify({ 
+            type: "START_GAME", 
+            settings: { mode: document.getElementById("lobby-settings-mode").value } 
+        }));
+    } else {
+        console.error("Cannot start game: WebSocket is not connected.");
+        alert("Connection lost. Please refresh the page.");
+    }
 };
 
 export let globalWs;
@@ -66,6 +134,16 @@ const checkExistingSession = async () => {
   } catch (error) {
     console.error("Session check failed:", error);
   }
+};
+
+document.getElementById("lobby-settings-mode").onchange = (e) => {
+    // Send a message to the server to update the room settings
+    if (globalWs?.readyState === WebSocket.OPEN) {
+        globalWs.send(JSON.stringify({
+            type: "UPDATE_SETTINGS",
+            settings: { mode: e.target.value }
+        }));
+    }
 };
 
 const setupUIEvents = () => {
@@ -297,7 +375,12 @@ const handleLoginSuccess = (name, isAuthorized = false, savedHue = 231) => {
 
 // --- CORE GAME NETWORKING ---
 function joinGame(room, name) {
+  if (globalWs) {
+        globalWs.close();
+    }
   elements.startScreen.classList.add("hidden");
+  elements.lobbyScreen.classList.remove("hidden"); // Show Lobby instead of Game UI
+  document.getElementById("lobby-room-code").innerText = room;
   elements.gameUI.classList.remove("hidden");
   document.getElementById("room-id-text").innerText = room;
 
@@ -309,34 +392,68 @@ function joinGame(room, name) {
   globalWs.onmessage = (e) => {
     const data = JSON.parse(e.data);
 
-    if (data.type === "TILE_REMOVED" && data.coords) {
-      import("./RenderCanvas.js").then(module => {
-        module.triggerRemovalAnimation(data.coords);
-      });
+    if (data.type === "GAME_STARTED") {
+      elements.lobbyScreen.classList.add("hidden");
+      elements.gameUI.classList.remove("hidden");
       return;
     }
 
+    // 2. Update Lobby Player List
+    if (data.type === "UPDATE" || data.type === "INIT") {
+      updateLobbyUI(data.state);
+    }
+
     if (data.type === "DRAWN_TILES") {
-      // Handled by state updates mostly, but can be used for animations later
+      renderCanvas(data.state);
       return;
+    }
+
+    
+    if (data.type === "UPDATE" || data.type === "TILE_REMOVED") {
+      window.lastKnownState = data;
+      import("./RenderCanvas.js").then(m => {
+        if (data.type === "TILE_REMOVED") {
+          m.triggerRemovalAnimation(data.tiles);
+        }
+      });
     }
 
     if (!data.state) return;
     if (data.type === "INIT") window.myPlayerId = data.playerId;
+    const currentState = data.state || data;
+    if (currentState && currentState.players) {
+      window.lastKnownState = currentState;
+        
+      // Update Lobby or Leaderboard
+      updateLobbyUI(currentState);
+      updateLeaderboard(currentState.players, window.myPlayerId);
 
-    window.lastKnownState = data.state;
+      // Sync Rack/Hand
+      const myPlayer = currentState.players[window.myPlayerId];
+      if (myPlayer && myPlayer.hand) {
+        rackState.tiles = myPlayer.hand;
+      }
+    }
 
-    // Sync Rack from Player State
-    const myPlayer = data.state.players[window.myPlayerId];
-    if (myPlayer && myPlayer.hand) {
-      import("./RenderCanvas.js").then(module => {
-        module.rackState.tiles = myPlayer.hand;
-        module.renderCanvas(data.state);
+    // 4. Trigger Animations or Rendering
+    if (data.type === "TILE_REMOVED") {
+      // We import dynamically to ensure the animation loop starts
+      import("./RenderCanvas.js").then(m => {
+        // data.tiles should contain the list of bricks just destroyed
+        m.triggerRemovalAnimation(data.tiles);
+        
+      renderCanvas(window.lastKnownState);
       });
     } else {
-      renderCanvas(data.state);
+      // Standard refresh for all other updates (PLACE, UPDATE, INIT)
+      renderCanvas(window.lastKnownState);
     }
-    updateLeaderboard(data.state.players, window.myPlayerId);
+  };
+
+  globalWs.onclose = () => {
+        console.warn("WebSocket disconnected");
+        elements.lobbyStartBtn.disabled = true;
+        window.isGameActive = false;
   };
 }
 

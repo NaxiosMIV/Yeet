@@ -19,32 +19,32 @@ export const rackState = {
 
 let removalAnimations = [];
 
-export function triggerRemovalAnimation(coords) {
+export function triggerRemovalAnimation(tiles) {
   const startTime = performance.now();
-  const duration = 800; // ms
+  const duration = 800;
 
-  // Find tiles in lastKnownState for visual reference
-  coords.forEach(coord => {
-    const tile = window.lastKnownState?.pending_tiles.find(t => t.x === coord.x && t.y === coord.y);
-    if (tile) {
+  tiles.forEach(tile => {
       removalAnimations.push({
-        ...tile,
+        x: tile.x,
+        y: tile.y,
+        letter: tile.letter || "?",
+        color: tile.color || "#ef4444", // Default to a "error/remove" red
         startTime,
         duration
       });
-    }
   });
 
-  // Start animation loop if not already running
-  if (removalAnimations.length > 0) {
-    requestAnimationFrame(animationLoop);
-  }
+  // Force an immediate start
+  requestAnimationFrame(animationLoop);
 }
 
 function animationLoop() {
   const now = performance.now();
+  
+  // Filter out finished animations
   removalAnimations = removalAnimations.filter(anim => now < anim.startTime + anim.duration);
 
+  // Always render if there are active animations
   if (window.lastKnownState) {
     renderCanvas(window.lastKnownState);
   }
@@ -84,6 +84,8 @@ export function renderCanvas(state) {
   const endY = Math.ceil((camera.y + viewH / 2) / cellSize);
 
   render_grid(ctx, startX, endX, startY, endY, cellSize);
+
+  render_pending(ctx, state, startX, endX, startY, endY, cellSize);
   render_textbox(ctx, state, startX, endX, startY, endY, cellSize);
 
   // --- GHOST PREVIEW (Matches User Color) ---
@@ -147,7 +149,7 @@ function drawTile(ctx, x, y, size, letter, isDragging) {
   ctx.fill();
 
   ctx.font = `bold ${size * 0.5}px Lexend, sans-serif`;
-  ctx.fillStyle = "#431407"; // Dark wood/charcoal text
+  ctx.fillStyle = "#ffffff";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(letter, x + size / 2, y + size / 2);
@@ -224,35 +226,85 @@ function render_textbox(ctx, state, startX, endX, startY, endY, cellSize) {
       ctx.restore();
     }
   });
-
-  // 3. Render Removal Animations (Fading/Shrinking)
-  removalAnimations.forEach(anim => {
-    const elapsed = performance.now() - anim.startTime;
-    const progress = Math.min(elapsed / anim.duration, 1);
-    const opacity = 1 - progress;
-    const scale = 1 - progress * 0.5; // Shrink to 50% size
-
-    const cx = anim.x * cellSize + cellSize / 2;
-    const cy = anim.y * cellSize + cellSize / 2;
-    const tileColor = anim.color || "#4f46e5";
-
-    ctx.save();
-    ctx.globalAlpha = opacity * 0.8; // Start slightly transparent
-    ctx.translate(cx, cy);
-    ctx.scale(scale, scale);
-    ctx.translate(-cx, -cy);
-
-    ctx.fillStyle = tileColor;
-    ctx.beginPath();
-    ctx.roundRect(anim.x * cellSize + 4, anim.y * cellSize + 4, cellSize - 8, cellSize - 8, 6);
-    ctx.fill();
-
-    ctx.fillStyle = "white";
-    ctx.fillText(anim.letter.toUpperCase(), cx, cy);
-    ctx.restore();
-  });
 }
 
+export function render_pending(ctx, state, startX, endX, startY, endY, cellSize) {
+  
+  // RenderCanvas.js - inside render_textbox
+  (state.pending_tiles || []).forEach(cell => {
+    if (cell.x >= startX && cell.x <= endX && cell.y >= startY && cell.y <= endY) {
+        const cx = cell.x * cellSize + cellSize / 2;
+        const cy = cell.y * cellSize + cellSize / 2;
+
+        const tileColor = cell.color || "#4f46e5";
+        ctx.save();
+        
+        // Make pending tiles slightly "pulsing" or semi-transparent
+        ctx.globalAlpha = 0.2; 
+        ctx.fillStyle = tileColor;
+        
+        ctx.beginPath();
+        // Use a slightly different shape (rounded) to distinguish from confirmed tiles
+        ctx.roundRect(cell.x * cellSize + 4, cell.y * cellSize + 4, cellSize - 8, cellSize - 8, 8);
+        ctx.fill();
+
+        // Add a small border to make it pop since it's transparent
+        ctx.strokeStyle = "rgba(255,255,255,0.5)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.globalAlpha = 1.0;
+        ctx.fillStyle = "white";
+        ctx.fillText(cell.letter.toUpperCase(), cx, cy);
+        ctx.restore();
+    }
+  });
+    // Inside render_textbox, Section 3: Removal Animations
+  removalAnimations.forEach((anim) => {
+      const elapsed = performance.now() - anim.startTime;
+      const progress = Math.min(elapsed / anim.duration, 1);
+      
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      const opacity = 1 - progress;
+      const explodeDist = cellSize * 0.8 * easeOut;
+      const halfSize = (cellSize - 8) / 2;
+      const cx = anim.x * cellSize + cellSize / 2;
+      const cy = anim.y * cellSize + cellSize / 2;
+
+      const quadrants = [
+          { dx: -1, dy: -1, rot: -0.5 },
+          { dx: 1, dy: -1, rot: 0.5 },
+          { dx: -1, dy: 1, rot: -0.8 },
+          { dx: 1, dy: 1, rot: 0.8 }
+      ];
+
+      quadrants.forEach((q) => {
+          ctx.save();
+          ctx.globalAlpha = opacity;
+          ctx.translate(cx + q.dx * explodeDist, cy + q.dy * explodeDist);
+          ctx.rotate(q.rot * easeOut);
+          
+          ctx.fillStyle = anim.color;
+          ctx.beginPath();
+          // Draw the shard
+          ctx.roundRect(
+              q.dx < 0 ? -halfSize : 0, 
+              q.dy < 0 ? -halfSize : 0, 
+              halfSize - 1, 
+              halfSize - 1, 
+              2
+          );
+          ctx.fill();
+          
+          // Draw fragment of the letter
+          ctx.fillStyle = "white";
+          ctx.font = `bold ${cellSize * 0.4}px Lexend, sans-serif`;
+          ctx.fillText(anim.letter, 0, 0); 
+          ctx.restore(); // Restore per quadrant
+      });
+  });
+  
+}
 export function screenToWorld(screenX, screenY, rect) {
   let x = (screenX - rect.width / 2) * (40 / camera.zoom) + camera.x;
   let y = (screenY - rect.height / 2) * (40 / camera.zoom) + camera.y;

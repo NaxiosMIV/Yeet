@@ -29,17 +29,17 @@ class Player:
         }
 
 class GameRoom:
-    def __init__(self, room_code: str):
+    def __init__(self, room_code):
         self.room_code = room_code
-        self.board: List[Dict] = []
-        self.pending_tiles: List[Dict] = []
-        self.players: Dict[str, Player] = {}
-        self.status = "PLAYING" # WAITING, PLAYING, FINISHED
-        self.created_at = time.time()
-        self.group_timers: Dict[str, asyncio.Task] = {} # "h:{id}" or "v:{id}" -> timer_task
-        
-        # 초기 단어 생성
-        self._initialize_starting_word()
+        self.players = {} 
+        self.state = "LOBBY" 
+        self.settings = {
+            "mode": "classic",
+            "max_players": 10
+        }
+        self.board = []
+        self.pending_tiles = [] # Added missing init
+        self.group_timers = {}  # Added missing init
 
     def _initialize_starting_word(self):
         word = get_random_word(6)
@@ -78,13 +78,34 @@ class GameRoom:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
+    async def broadcast_state(self):
+        await self.broadcast({"type": "UPDATE", "state": self.get_state()})
+
+    def start_match(self):
+        self.state = "INGAME"
+        if not self.board:
+            self._initialize_starting_word()
+        
+        # Ensure all players have 7 tiles at start
+        for p_id in self.players:
+            self.players[p_id].hand = [] # Clear lobby hands
+            self.draw_tiles_for_player(p_id, 12)
+
     def get_state(self):
         return {
+            "room_code": self.room_code,
+            "state": self.state,
+            "settings": self.settings,
+            "players": {
+                uuid: {
+                    "name": p.name,
+                    "color": p.color,
+                    "score": p.score,
+                    "hand": p.hand if self.state == "INGAME" else []
+                } for uuid, p in self.players.items()
+            },
             "board": self.board,
-            "pending_tiles": self.pending_tiles,
-            "players": {pid: p.to_dict() for pid, p in self.players.items()},
-            "status": self.status,
-            "room_code": self.room_code
+            "pending_tiles": self.pending_tiles
         }
 
     def place_tile(self, x: int, y: int, letter: str, player_id: str, points: int, color: str = None):
@@ -195,23 +216,27 @@ class GameRoom:
         """특정 방향 그룹을 검증하고 처리합니다."""
         dir_key = 'h_group_id' if direction == 'h' else 'v_group_id'
         group_tiles = [t for t in self.pending_tiles if t.get(dir_key) == group_id]
+        
         if not group_tiles: return
 
-        # 단어 형성 및 검증
-        # 그룹 내 어떤 타일로부터 시작해도 같은 한 줄의 단어가 나옴
         t = group_tiles[0]
         dx, dy = (1, 0) if direction == 'h' else (0, 1)
         board_dict = self._get_combined_board_dict()
         
-        # 선형적으로 단어 찾기
+        # 1. 단어의 시작점 찾기
         curr_x, curr_y = t['x'], t['y']
         while (curr_x - dx, curr_y - dy) in board_dict:
             curr_x -= dx
             curr_y -= dy
         
+        start_x, start_y = curr_x, curr_y # 시작 좌표 저장
+
+        # 2. 단어 문자열 구성 및 좌표 리스트 생성
         word = ""
+        word_coords = [] # 단어를 구성하는 모든 좌표 (기존 + 신규)
         while (curr_x, curr_y) in board_dict:
             word += board_dict[(curr_x, curr_y)]
+            word_coords.append((curr_x, curr_y))
             curr_x += dx
             curr_y += dy
 
@@ -219,47 +244,46 @@ class GameRoom:
         
         if result.get("is_valid"):
             logger.debug(f"Valid {direction} word: {word}")
-            # 이 그룹의 모든 대기 타일을 보드로 이동 시도
-            # (다른 방향 검증 결과와 상관없이 이 방향으로 유효하다면 보드로 이동)
+            
+            # 이 단어를 완성한 플레이어의 색상 (첫 번째 펜딩 타일 기준)
+            new_color = group_tiles[0].get('color', '#4f46e5')
+            
+            # A. 보드에 이미 있던 타일들의 색상을 새 색상으로 업데이트
+            for bx, by in word_coords:
+                for board_tile in self.board:
+                    if board_tile['x'] == bx and board_tile['y'] == by:
+                        board_tile['color'] = new_color
+                        break
+
+            # B. 신규 대기 타일들을 보드로 이동 (place_tile 내에서 color 적용)
             for gt in group_tiles:
-                # 보드에 타일 영구 배치
-                if self.place_tile(gt['x'], gt['y'], gt['letter'], gt['player_id'], 10, gt.get('color')):
-                    # 점수 추가 (단어 점수)
+                if self.place_tile(gt['x'], gt['y'], gt['letter'], gt['player_id'], 10, new_color):
                     if gt['player_id'] in self.players:
                         self.players[gt['player_id']].score += result['score'] // len(group_tiles)
+            await self.broadcast_state()
+            await self.broadcast({"type": "MODAL", "message": f"Word completed: {word}"})
             
-            # 성공 메시지
-            await self.broadcast({"type": "MODAL", "message": f"Word completed ({direction}): {word}"})
-            
-            # 보드로 이동한 타일들을 pending에서 제거
+            # pending_tiles 정리
             self.pending_tiles = [pt for pt in self.pending_tiles if not any(bt for bt in self.board if bt['x'] == pt['x'] and bt['y'] == pt['y'])]
+        
         else:
-            logger.debug(f"Invalid {direction} word or single letter: {word}")
-            # 이 방향으로는 유효하지 않음. 
-            # 하지만 다른 방향(교차되는 방향)의 타이머가 아직 살아있거나 유효할 수 있음.
-            # 이 방향의 그룹 ID를 제거하여 '이 방향으로는 더 이상 펜딩이 아님'을 표시
+            # ... (기존 Invalid 처리 로직 동일) ...
             for gt in group_tiles:
                 gt[dir_key] = None
             
-            # 만약 타일이 가로/세로 양쪽 모두에서 확정이 안 되거나 타이머가 끝났다면 제거
             def should_remove(pt):
                 h_active = f"h:{pt['h_group_id']}" in self.group_timers if pt['h_group_id'] else False
                 v_active = f"v:{pt['v_group_id']}" in self.group_timers if pt['v_group_id'] else False
                 return not h_active and not v_active
 
-            # 양쪽 다 끝났는데도 보드에 못 올라갔다면(유효한 단어가 없다면) 제거
             to_remove = [pt for pt in self.pending_tiles if should_remove(pt)]
             if to_remove:
-                removed_coords = [{"x": rt["x"], "y": rt["y"]} for rt in to_remove]
-                logger.debug(f"Broadcasting TILE_REMOVED for coordinates: {removed_coords}")
-                await self.broadcast({"type": "TILE_REMOVED", "coords": removed_coords})
+                # 애니메이션을 위해 전체 타일 정보를 보냄
+                await self.broadcast({"type": "TILE_REMOVED", "tiles": to_remove})
+                
 
             self.pending_tiles = [pt for pt in self.pending_tiles if not should_remove(pt)]
-
-        # 타이머 정리 및 업데이트
-        key = f"{direction}:{group_id}"
-        if key in self.group_timers: del self.group_timers[key]
-        await self.broadcast({"type": "UPDATE", "state": self.get_state()})
+            await self.broadcast_state()
 
     async def handle_end_game(self):
         """게임을 종료하고 결과를 저장합니다."""
@@ -287,4 +311,15 @@ class RoomManager:
         if room_code in self.rooms:
             del self.rooms[room_code]
 
+class SessionManager:
+    def __init__(self, code):
+        self.code = code
+        self.players = {}
+        self.state = "LOBBY" # New state tracker
+        self.board = []
+
+    async def broadcast_state(self):
+        await self.broadcast({"type": "UPDATE", "state": self.get_state()})
+
 room_manager = RoomManager()
+session_manager = SessionManager("GLOBAL")
