@@ -24,6 +24,13 @@ async def chat_test():
 async def index():
     return FileResponse("../client/index.html")
 
+@router.get("/next")
+async def next_ui():
+    # Redirect to Next.js dev server during development
+    # In production, this would serve the built static files
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="http://localhost:3000")
+
 @router.get("/get_user/{user_uuid}")
 async def get_user(user_uuid: str):
     return get_user_by_uuid(user_uuid)

@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 import time
 import asyncio
 import uuid
+import random
 from core.words import get_word_in_cache, get_random_word
 from core.tiles import generate_weighted_tiles
 from core.database import save_game_result
@@ -17,7 +18,7 @@ class Player:
         self.websocket = websocket
         self.score = 0
         self.color = "#6366F1" # Default color
-        self.hand: List[str] = []
+        self.hand: List[Optional[str]] = [None] * 10
         logger.debug(f"Player created: {self.name} ({self.player_id})")
 
     def to_dict(self):
@@ -45,19 +46,7 @@ class GameRoom:
         self.duration: int = 0
         self.start_time: Optional[float] = None
         self.lock = asyncio.Lock()
-        
-        # 초기 단어 생성
-        self._initialize_starting_word()
 
-    def _initialize_starting_word(self):
-        word = get_random_word(6)
-        if word:
-            # 중앙에 배치 (가로)
-            start_x = -(len(word) // 2)
-            for i, letter in enumerate(word):
-                pos = (start_x + i, 0)
-                self.board[pos] = {'x': pos[0], 'y': pos[1], 'letter': letter.upper(), 'color': '#6366F1'}
-            logger.info(f"Initialized room {self.room_code} with word: {word}")
 
     def add_player(self, player: Player):
         logger.debug(f"Adding player {player.name} to room {self.room_code}")
@@ -72,10 +61,22 @@ class GameRoom:
         if player_id not in self.players:
             return []
         
+        player = self.players[player_id]
         new_tiles = generate_weighted_tiles(count)
-        self.players[player_id].hand.extend(new_tiles)
-        logger.debug(f"Player {player_id} drew {count} tiles: {new_tiles}")
-        return new_tiles
+        drawn = []
+        
+        for tile in new_tiles:
+            # Find first available None slot
+            try:
+                empty_idx = player.hand.index(None)
+                player.hand[empty_idx] = tile
+                drawn.append(tile)
+            except ValueError:
+                # Hand is full
+                break
+                
+        logger.debug(f"Player {player.name} drew {len(drawn)} tiles: {drawn}")
+        return drawn
 
     async def broadcast(self, message: dict):
         logger.debug(f"Broadcasting message type {message.get('type')} to {len(self.players)} players in {self.room_code}")
@@ -92,14 +93,21 @@ class GameRoom:
 
     def start_match(self):
         self.status = "INGAME"
-        if not self.board:
-            self._initialize_starting_word()
         
-        # Ensure all players have 7 tiles at start
-        for p_id in self.players:
-            self.players[p_id].hand = [] # Clear lobby hands
-            self.draw_tiles_for_player(p_id, 12)
-
+        # Give each player a random 6-10 letter word as starting tiles
+        for p_id, player in self.players.items():
+            player.hand = [None] * 10 # Reset and fix size
+            word = get_random_word(min_length=6, max_length=10)
+            if word:
+                letters = list(word.upper())[:10] # Cap at 10
+                for i, letter in enumerate(letters):
+                    player.hand[i] = letter
+                logger.debug(f"Player {player.name} starting with word tiles: {word}")
+            else:
+                # Fallback if no word found
+                logger.warning(f"No 6-10 letter word found for player {player.name}, falling back to random tiles.")
+                self.draw_tiles_for_player(p_id, 8)
+    
     def get_state(self):
         remaining_time = 0
         if self.start_time and self.duration:
@@ -183,10 +191,10 @@ class GameRoom:
         find_in_dir(-1)
         return found_groups
 
-    async def handle_place_tile(self, x: int, y: int, letter: str, player_id: str, color: str = None):
+    async def handle_place_tile(self, x: int, y: int, letter: str, player_id: str, color: str = None, hand_index: int = None):
         """타일을 대기열에 추가하고 가로/세로 타이머를 처리합니다. 병합 로직 포함."""
         async with self.lock:
-            logger.debug(f"handle_place_tile: x={x}, y={y}, letter={letter}, player={player_id}, color={color}")
+            logger.debug(f"handle_place_tile: x={x}, y={y}, letter={letter}, player={player_id}, color={color}, hand_index={hand_index}")
             
             if player_id not in self.players:
                 return False, "Player not found"
@@ -198,12 +206,27 @@ class GameRoom:
                any(t for t in self.pending_tiles if t['x'] == x and t['y'] == y):
                 return False, "Tile already exists at this position"
 
-            # 핸드 체크 (현재 보류 중인 타일도 고려)
-            hand_count = player.hand.count(letter_upper)
-            pending_count = sum(1 for pt in self.pending_tiles if pt['player_id'] == player_id and pt.get('letter', '').upper() == letter_upper)
-            
-            if pending_count >= hand_count:
-                return False, f"Not enough {letter_upper} in hand"
+            # 핸드 체크
+            if hand_index is not None and 0 <= hand_index < len(player.hand):
+                if player.hand[hand_index] != letter_upper:
+                    return False, f"Tile {letter_upper} not found at slot {hand_index}"
+                # Consumption will happen below if valid
+            else:
+                # Fallback to search if index not provided
+                if letter_upper not in player.hand:
+                    return False, f"Not enough {letter_upper} in hand"
+
+            # 연결성 체크 (첫 타일 제외)
+            is_first_tile = not self.board and not self.pending_tiles
+            if not is_first_tile:
+                has_adj = False
+                for dx, dy in [(1,0), (-1,0), (0,1), (0,-1)]:
+                    nx, ny = x + dx, y + dy
+                    if (nx, ny) in self.board or any(pt['x'] == nx and pt['y'] == ny for pt in self.pending_tiles):
+                        has_adj = True
+                        break
+                if not has_adj:
+                    return False, "Tile must be adjacent to existing or pending tiles"
 
             # 방향별 그룹 처리
             def process_direction(dx, dy, prefix):
@@ -237,8 +260,16 @@ class GameRoom:
                 'player_id': player_id, 
                 'color': color,
                 'h_group_id': h_group_id, 
-                'v_group_id': v_group_id
+                'v_group_id': v_group_id,
+                'hand_index': hand_index
             })
+
+            # Consume from hand
+            if hand_index is not None:
+                player.hand[hand_index] = None
+            else:
+                idx = player.hand.index(letter_upper)
+                player.hand[idx] = None
 
             # 즉시 검증 시도
             finalized_h = False
@@ -246,15 +277,21 @@ class GameRoom:
             
             # 가로 즉시 검증
             h_word = self._get_word_at(x, y, 'h')
-            if len(h_word) > 1 and get_word_in_cache(h_word).get("is_valid"):
-                await self.finalize_pending_group(h_group_id, 'h')
-                finalized_h = True
-                
-            # 세로 즉시 검증
             v_word = self._get_word_at(x, y, 'v')
+            
+            # 가로 단어가 유효하고, 세로 방향도 유효성(1글자거나 유효단어)을 충족할 때만 즉시 확정
+            if len(h_word) > 1 and get_word_in_cache(h_word).get("is_valid"):
+                if len(v_word) == 1 or get_word_in_cache(v_word).get("is_valid"):
+                    await self.finalize_pending_group(h_group_id, 'h')
+                    finalized_h = True
+                
+            # 세로 즉시 검증 (가로가 이미 확정되었더라도 독립적으로 체크)
             if len(v_word) > 1 and get_word_in_cache(v_word).get("is_valid"):
-                await self.finalize_pending_group(v_group_id, 'v')
-                finalized_v = True
+                # 세로 단어가 유효하고, 가로 방향도 유효성을 충족할 때
+                if len(h_word) == 1 or get_word_in_cache(h_word).get("is_valid"):
+                    # 중복 확정 방지: 가로 확정 시 이미 보드에 들어갔을 수 있음
+                    await self.finalize_pending_group(v_group_id, 'v')
+                    finalized_v = True
 
             # 확정되지 않은 방향만 타이머 시작
             if not finalized_h:
@@ -275,11 +312,17 @@ class GameRoom:
             return True, None
 
     async def _wait_and_finalize_group(self, group_id: str, direction: str):
+        key = f"{direction}:{group_id}"
         try:
             await asyncio.sleep(3)
             await self.finalize_pending_group(group_id, direction)
         except asyncio.CancelledError:
             pass
+        finally:
+            # 작업이 완료되거나 취소되었을 때 딕셔너리에서 제거
+            # 단, 현재 태스크가 딕셔너리에 등록된 태스크와 일치할 때만 제거 (경합 방지)
+            if self.group_timers.get(key) == asyncio.current_task():
+                del self.group_timers[key]
 
     async def finalize_pending_group(self, group_id: str, direction: str):
         """특정 방향 그룹을 검증하고 처리합니다."""
@@ -311,6 +354,18 @@ class GameRoom:
 
         result = get_word_in_cache(word) if len(word) > 1 else {"is_valid": False}
         
+        # 3. 모든 타일에 대해 교차 방향 단어도 유효한지 확인 (Scrabble Rule)
+        if result.get("is_valid"):
+            cross_direction = 'v' if direction == 'h' else 'h'
+            for bx, by in word_coords:
+                cross_word = self._get_word_at(bx, by, cross_direction)
+                if len(cross_word) > 1:
+                    cross_result = get_word_in_cache(cross_word)
+                    if not cross_result.get("is_valid"):
+                        logger.debug(f"Invalid cross word '{cross_word}' found at ({bx}, {by}) while validating '{word}'")
+                        result["is_valid"] = False
+                        break
+
         if result.get("is_valid"):
             logger.debug(f"Valid {direction} word: {word}")
             
@@ -354,20 +409,41 @@ class GameRoom:
                 logger.info(f"Penalty applied to players {penalized_players} for invalid word: {word}")
                 await self.broadcast({"type": "MODAL", "message": f"Invalid word: {word}. -{penalty_points} points penalty!"})
 
-            for gt in group_tiles:
-                gt[dir_key] = None
-            
+            # 4. 검증 실패 시 해당 방향 타이머 정보 제거 (현재 로직이 직접 실행 중이므로)
+            key = f"{direction}:{group_id}"
+            if self.group_timers.get(key) == asyncio.current_task() or \
+               (key in self.group_timers and self.group_timers[key].done()):
+                if key in self.group_timers:
+                    del self.group_timers[key]
+
             def should_remove(pt):
+                # 타일이 제거되려면 가로/세로 모든 연결 그룹의 타이머가 종료되어야 함
                 h_active = f"h:{pt['h_group_id']}" in self.group_timers if pt['h_group_id'] else False
                 v_active = f"v:{pt['v_group_id']}" in self.group_timers if pt['v_group_id'] else False
                 return not h_active and not v_active
 
             to_remove = [pt for pt in self.pending_tiles if should_remove(pt)]
             if to_remove:
+                # Return to hand
+                for pt in to_remove:
+                    pid = pt['player_id']
+                    if pid in self.players:
+                        p = self.players[pid]
+                        h_idx = pt.get('hand_index')
+                        if h_idx is not None and 0 <= h_idx < len(p.hand):
+                            # Try to put it back in the original slot if empty
+                            if p.hand[h_idx] is None:
+                                p.hand[h_idx] = pt['letter']
+                            else:
+                                # Find another empty slot
+                                for i in range(len(p.hand)):
+                                    if p.hand[i] is None:
+                                        p.hand[i] = pt['letter']
+                                        break
+                
                 # 애니메이션을 위해 전체 타일 정보를 보냄
                 await self.broadcast({"type": "TILE_REMOVED", "tiles": to_remove})
                 
-
             self.pending_tiles = [pt for pt in self.pending_tiles if not should_remove(pt)]
             await self.broadcast_state()
 
@@ -406,6 +482,11 @@ class GameRoom:
         self.start_time = time.time()
         self.room_timer_task = asyncio.create_task(self._run_timer(duration))
         logger.info(f"Room timer started for {self.room_code}: {duration}s")
+
+    def update_settings(self, settings: dict):
+        """방 설정을 업데이트합니다."""
+        self.settings.update(settings)
+        logger.info(f"Room settings updated for {self.room_code}: {self.settings}")
 
     async def _run_timer(self, duration: int):
         try:

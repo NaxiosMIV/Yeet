@@ -30,43 +30,43 @@ const elements = {
 };
 
 function updateLobbyUI(state) {
-    elements.lobbyPlayerList.innerHTML = "";
-    
-    const playerIds = Object.keys(state.players);
-    
-    const isHost = playerIds[0] === window.myPlayerId;
+  elements.lobbyPlayerList.innerHTML = "";
 
-    // Elements for toggling
-    const modeSelect = document.getElementById("lobby-settings-mode");
-    const modeText = document.getElementById("lobby-mode-text");
+  const playerIds = Object.keys(state.players);
 
-    if (isHost) {
-        // HOST VIEW: Show the interactive dropdown and start button
-        elements.lobbyStartBtn.classList.remove("hidden");
-        elements.lobbyWaitMsg.classList.add("hidden");
-        
-        modeSelect.classList.remove("hidden");
-        modeText.classList.add("hidden");
-    } else {
-        // GUEST VIEW: Show read-only text and waiting message
-        elements.lobbyStartBtn.classList.add("hidden");
-        elements.lobbyWaitMsg.classList.remove("hidden");
+  const isHost = playerIds[0] === window.myPlayerId;
 
-        modeSelect.classList.add("hidden");
-        modeText.classList.remove("hidden");
-        
-        // Sync the text with whatever the host has currently selected (from state)
-        const currentMode = state.settings?.mode || 'classic';
-        modeText.innerText = currentMode.charAt(0).toUpperCase() + currentMode.slice(1);
-    }
+  // Elements for toggling
+  const modeSelect = document.getElementById("lobby-settings-mode");
+  const modeText = document.getElementById("lobby-mode-text");
 
-    // Render player list...
+  if (isHost) {
+    // HOST VIEW: Show the interactive dropdown and start button
+    elements.lobbyStartBtn.classList.remove("hidden");
+    elements.lobbyWaitMsg.classList.add("hidden");
+
+    modeSelect.classList.remove("hidden");
+    modeText.classList.add("hidden");
+  } else {
+    // GUEST VIEW: Show read-only text and waiting message
+    elements.lobbyStartBtn.classList.add("hidden");
+    elements.lobbyWaitMsg.classList.remove("hidden");
+
+    modeSelect.classList.add("hidden");
+    modeText.classList.remove("hidden");
+
+    // Sync the text with whatever the host has currently selected (from state)
+    const currentMode = state.settings?.mode || 'classic';
+    modeText.innerText = currentMode.charAt(0).toUpperCase() + currentMode.slice(1);
+  }
+
+  // Render player list...
   playerIds.forEach(id => {
-        const p = state.players[id];
-        const isThisPlayerHost = id === playerIds[0];
-        const item = document.createElement("div");
-        item.className = "flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all";
-        item.innerHTML = `
+    const p = state.players[id];
+    const isThisPlayerHost = id === playerIds[0];
+    const item = document.createElement("div");
+    item.className = "flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 transition-all";
+    item.innerHTML = `
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl border-2 border-white shadow-sm" style="background-color: ${p.color || '#6366F1'}"></div>
                 <div class="flex flex-col">
@@ -76,21 +76,21 @@ function updateLobbyUI(state) {
             </div>
             ${isThisPlayerHost ? '<span class="material-icons-round text-amber-400 text-sm">stars</span>' : ''}
         `;
-        elements.lobbyPlayerList.appendChild(item);
-    });
+    elements.lobbyPlayerList.appendChild(item);
+  });
 }
 
 // Event listener for the actual match start
 elements.lobbyStartBtn.onclick = () => {
-    if (globalWs && globalWs.readyState === WebSocket.OPEN) {
-        globalWs.send(JSON.stringify({ 
-            type: "START_GAME", 
-            settings: { mode: document.getElementById("lobby-settings-mode").value } 
-        }));
-    } else {
-        console.error("Cannot start game: WebSocket is not connected.");
-        alert("Connection lost. Please refresh the page.");
-    }
+  if (globalWs && globalWs.readyState === WebSocket.OPEN) {
+    globalWs.send(JSON.stringify({
+      type: "START_GAME",
+      settings: { mode: document.getElementById("lobby-settings-mode").value }
+    }));
+  } else {
+    console.error("Cannot start game: WebSocket is not connected.");
+    alert("Connection lost. Please refresh the page.");
+  }
 };
 
 export let globalWs;
@@ -137,13 +137,13 @@ const checkExistingSession = async () => {
 };
 
 document.getElementById("lobby-settings-mode").onchange = (e) => {
-    // Send a message to the server to update the room settings
-    if (globalWs?.readyState === WebSocket.OPEN) {
-        globalWs.send(JSON.stringify({
-            type: "UPDATE_SETTINGS",
-            settings: { mode: e.target.value }
-        }));
-    }
+  // Send a message to the server to update the room settings
+  if (globalWs?.readyState === WebSocket.OPEN) {
+    globalWs.send(JSON.stringify({
+      type: "UPDATE_SETTINGS",
+      settings: { mode: e.target.value }
+    }));
+  }
 };
 
 const setupUIEvents = () => {
@@ -376,8 +376,8 @@ const handleLoginSuccess = (name, isAuthorized = false, savedHue = 231) => {
 // --- CORE GAME NETWORKING ---
 function joinGame(room, name) {
   if (globalWs) {
-        globalWs.close();
-    }
+    globalWs.close();
+  }
   elements.startScreen.classList.add("hidden");
   elements.lobbyScreen.classList.remove("hidden"); // Show Lobby instead of Game UI
   document.getElementById("lobby-room-code").innerText = room;
@@ -408,7 +408,7 @@ function joinGame(room, name) {
       return;
     }
 
-    
+
     if (data.type === "UPDATE" || data.type === "TILE_REMOVED") {
       window.lastKnownState = data;
       import("./RenderCanvas.js").then(m => {
@@ -423,7 +423,7 @@ function joinGame(room, name) {
     const currentState = data.state || data;
     if (currentState && currentState.players) {
       window.lastKnownState = currentState;
-        
+
       // Update Lobby or Leaderboard
       updateLobbyUI(currentState);
       updateLeaderboard(currentState.players, window.myPlayerId);
@@ -431,7 +431,26 @@ function joinGame(room, name) {
       // Sync Rack/Hand
       const myPlayer = currentState.players[window.myPlayerId];
       if (myPlayer && myPlayer.hand) {
-        rackState.tiles = myPlayer.hand;
+        // Detect additions for animation
+        myPlayer.hand.forEach((newLetter, idx) => {
+          if (newLetter && !rackState.tiles[idx]) {
+            // New tile arrived in this empty slot
+            rackState.arrivalAnimations.push({
+              index: idx,
+              startTime: performance.now(),
+              duration: 500
+            });
+          }
+        });
+
+        rackState.tiles = [...myPlayer.hand];
+        // Ensure animation loop is running if animations exist
+        if (rackState.arrivalAnimations.length > 0) {
+          import("./RenderCanvas.js").then(m => {
+            // Just trigger a re-render/loop start check
+            renderCanvas(window.lastKnownState);
+          });
+        }
       }
     }
 
@@ -441,8 +460,8 @@ function joinGame(room, name) {
       import("./RenderCanvas.js").then(m => {
         // data.tiles should contain the list of bricks just destroyed
         m.triggerRemovalAnimation(data.tiles);
-        
-      renderCanvas(window.lastKnownState);
+
+        renderCanvas(window.lastKnownState);
       });
     } else {
       // Standard refresh for all other updates (PLACE, UPDATE, INIT)
@@ -451,9 +470,9 @@ function joinGame(room, name) {
   };
 
   globalWs.onclose = () => {
-        console.warn("WebSocket disconnected");
-        elements.lobbyStartBtn.disabled = true;
-        window.isGameActive = false;
+    console.warn("WebSocket disconnected");
+    elements.lobbyStartBtn.disabled = true;
+    window.isGameActive = false;
   };
 }
 
