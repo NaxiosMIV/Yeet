@@ -77,7 +77,7 @@ const setupUIEvents = () => {
   };
 
   elements.joinTab.onclick = () => {
-    mode = "join"; 
+    mode = "join";
     elements.joinBox.classList.remove("hidden");
     elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[var(--user-color)]";
     elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm text-slate-500";
@@ -105,7 +105,7 @@ const setupUIEvents = () => {
   elements.hueSlider.oninput = (e) => {
     const hue = e.target.value;
     const hexColor = hslToHex(hue, 70, 60);
-    
+
     // Set the CSS variable on the document or a wrapper element
     document.documentElement.style.setProperty('--user-color', hexColor);
 
@@ -116,7 +116,7 @@ const setupUIEvents = () => {
 
     // Re-apply the base Tailwind classes (the variable will handle the color)
     elements.startBtn.className = "w-full bg-[var(--user-color)] text-white py-4 rounded-2xl font-bold shadow-lg";
-    
+
     if (mode === "create") {
       elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[var(--user-color)]";
     } else if (mode === "join") {

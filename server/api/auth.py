@@ -32,6 +32,7 @@ def delete_auth_cookie(response: Response):
 
 @router.get("/config")
 async def get_config():
+    logger.debug("Config requested")
     load_dotenv()
     return {
         "google_client_id": os.getenv("GOOGLE_CLIENT_ID")
@@ -39,6 +40,7 @@ async def get_config():
 
 @router.get("/me")
 async def get_me(request: Request):
+    logger.debug("/me endpoint called")
     session_id = request.cookies.get("session_id")
     if not session_id:
         raise HTTPException(status_code=401, detail="세션이 없습니다.")
@@ -56,7 +58,9 @@ async def get_me(request: Request):
 
 @router.post("/login/{provider}")
 async def login(provider: str, response: Response, request: Request, token: str = Body(None, embed=True)):
+    logger.debug(f"Login attempt: provider={provider}")
     if request.cookies.get("session_id"):
+        logger.debug("Existing session found, skipping authentication")
         return await get_me(request)
 
     user_info = None
@@ -72,10 +76,12 @@ async def login(provider: str, response: Response, request: Request, token: str 
     
     user_uuid = await get_or_create_user(user_info["user"])
     set_auth_cookie(response, user_uuid)
+    logger.debug(f"Login successful for user {user_uuid}")
     
     return {"status": "success", "user": user_info["user"]}
 
 @router.post("/logout")
 async def logout(response: Response):
+    logger.debug("Logout called")
     delete_auth_cookie(response)
     return {"status": "success"}

@@ -11,6 +11,7 @@ async def join_room(room_code: str = Query(...)):
     """
     방 코드를 받아 방을 생성하거나 기존의 방을 반환합니다.
     """
+    logger.debug(f"join_room called with code: {room_code}")
     room = room_manager.get_or_create_room(room_code)
     return {
         "status": "success",

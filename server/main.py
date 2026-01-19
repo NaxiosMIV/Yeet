@@ -13,6 +13,7 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Server is starting up...")
+    logger.debug("Initializing database and loading words...")
     await init_db() 
     await load_words_to_memory()
     logger.info("Database and words loaded.")
@@ -32,6 +33,7 @@ async def health_check():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    logger.debug(f"New websocket connection attempt from {websocket.client}")
     await handle_websocket(websocket)
 
 # room_manager is managed in core/game.py

@@ -19,6 +19,7 @@ async def handle_websocket(ws: WebSocket):
 
     # Auth logic
     session_id = ws.cookies.get("session_id")
+    logger.debug(f"WebSocket handshake: session_id={session_id}")
     user_uuid = None
     if session_id:
         payload = decode_access_token(session_id)
@@ -40,6 +41,7 @@ async def handle_websocket(ws: WebSocket):
     try:
         while True:
             data = await ws.receive_json()
+            logger.debug(f"WebSocket message received: {data.get('type')}")
 
             if data["type"] == "PLACE":
                 x, y, letter = data["x"], data["y"], data["letter"]
@@ -63,8 +65,8 @@ async def handle_websocket(ws: WebSocket):
                 await room.broadcast({"type": "GAME_OVER", "game_id": game_id, "state": room.get_state()})
 
     except WebSocketDisconnect:
+        logger.debug(f"WebSocket disconnected: {user_uuid}")
         room.remove_player(user_uuid)
         await room.broadcast({"type": "UPDATE", "state": room.get_state()})
-        # Optional: Auto-clean empty rooms
         if not room.players:
             room_manager.remove_room(room_code)

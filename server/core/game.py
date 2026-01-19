@@ -15,6 +15,7 @@ class Player:
         self.websocket = websocket
         self.score = 0
         self.color = "#6366F1" # Default color
+        logger.debug(f"Player created: {self.name} ({self.player_id})")
 
     def to_dict(self):
         return {
@@ -46,13 +47,16 @@ class GameRoom:
             logger.info(f"Initialized room {self.room_code} with word: {word}")
 
     def add_player(self, player: Player):
+        logger.debug(f"Adding player {player.name} to room {self.room_code}")
         self.players[player.player_id] = player
 
     def remove_player(self, player_id: str):
+        logger.debug(f"Removing player {player_id} from room {self.room_code}")
         if player_id in self.players:
             del self.players[player_id]
 
     async def broadcast(self, message: dict):
+        logger.debug(f"Broadcasting message type {message.get('type')} to {len(self.players)} players in {self.room_code}")
         # 플레이어들에게 메시지 비동기 전송
         tasks = [
             p.websocket.send_json(message) 
@@ -118,6 +122,7 @@ class GameRoom:
 
     async def handle_place_tile(self, x: int, y: int, letter: str, player_id: str):
         """타일을 대기열에 추가하고 5초 타이머를 시작/재설정합니다."""
+        logger.debug(f"handle_place_tile: x={x}, y={y}, letter={letter}, player={player_id}")
         # 이미 같은 위치에 타일이 있는지 체크
         if any(t for t in self.board if t['x'] == x and t['y'] == y) or \
            any(t for t in self.pending_tiles if t['x'] == x and t['y'] == y):
@@ -173,6 +178,7 @@ class GameRoom:
 
         if not invalid_words and valid_words_data:
             # 모든 단어가 유효함 -> 영구 배치 및 점수 추가
+            logger.debug(f"Validation successful for room {self.room_code}. Words: {[r['word'] for r in valid_words_data]}")
             # Scrabble 규칙에 따라 점수 계산 로직이 복잡할 수 있으나, 여기서는 단순화
             # 각 타일별로 10점 + 형성된 유효 단어들의 점수 합산
             
@@ -197,6 +203,7 @@ class GameRoom:
             await self.broadcast({"type": "MODAL", "message": f"Words completed: {', '.join([r['word'] for r in valid_words_data])}"})
         else:
             # 유효하지 않은 단어가 있거나 단어가 형성되지 않음 -> 대기 타일 모두 제거
+            logger.debug(f"Validation failed for room {self.room_code}. Invalid words: {invalid_words}")
             reason = f"Invalid words: {', '.join(invalid_words)}" if invalid_words else "No valid words formed"
             await self.broadcast({"type": "ERROR", "message": reason})
         
