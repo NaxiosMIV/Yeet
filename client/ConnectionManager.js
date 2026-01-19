@@ -309,11 +309,33 @@ function joinGame(room, name) {
   globalWs.onmessage = (e) => {
     const data = JSON.parse(e.data);
 
+    if (data.type === "TILE_REMOVED" && data.coords) {
+      import("./RenderCanvas.js").then(module => {
+        module.triggerRemovalAnimation(data.coords);
+      });
+      return;
+    }
+
+    if (data.type === "DRAWN_TILES") {
+      // Handled by state updates mostly, but can be used for animations later
+      return;
+    }
+
     if (!data.state) return;
     if (data.type === "INIT") window.myPlayerId = data.playerId;
 
     window.lastKnownState = data.state;
-    renderCanvas(data.state);
+
+    // Sync Rack from Player State
+    const myPlayer = data.state.players[window.myPlayerId];
+    if (myPlayer && myPlayer.hand) {
+      import("./RenderCanvas.js").then(module => {
+        module.rackState.tiles = myPlayer.hand;
+        module.renderCanvas(data.state);
+      });
+    } else {
+      renderCanvas(data.state);
+    }
     updateLeaderboard(data.state.players, window.myPlayerId);
   };
 }

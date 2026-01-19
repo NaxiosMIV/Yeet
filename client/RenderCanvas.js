@@ -17,6 +17,43 @@ export const rackState = {
   dragY: 0
 };
 
+let removalAnimations = [];
+
+export function triggerRemovalAnimation(coords) {
+  const startTime = performance.now();
+  const duration = 800; // ms
+
+  // Find tiles in lastKnownState for visual reference
+  coords.forEach(coord => {
+    const tile = window.lastKnownState?.pending_tiles.find(t => t.x === coord.x && t.y === coord.y);
+    if (tile) {
+      removalAnimations.push({
+        ...tile,
+        startTime,
+        duration
+      });
+    }
+  });
+
+  // Start animation loop if not already running
+  if (removalAnimations.length > 0) {
+    requestAnimationFrame(animationLoop);
+  }
+}
+
+function animationLoop() {
+  const now = performance.now();
+  removalAnimations = removalAnimations.filter(anim => now < anim.startTime + anim.duration);
+
+  if (window.lastKnownState) {
+    renderCanvas(window.lastKnownState);
+  }
+
+  if (removalAnimations.length > 0) {
+    requestAnimationFrame(animationLoop);
+  }
+}
+
 export function renderCanvas(state) {
   if (!canvas || !state) return;
   const ctx = canvas.getContext("2d");
@@ -126,8 +163,8 @@ function render_grid(ctx, startX, endX, startY, endY, cellSize) {
 
       // 1. Subtle Tile Background
       // Using a very slight off-white/gray for a paper-like feel
-      ctx.fillStyle = "#f8fafc"; 
-      
+      ctx.fillStyle = "#f8fafc";
+
       // Draw rounded background for the grid slot
       ctx.beginPath();
       ctx.roundRect(px + 1.5, py + 1.5, cellSize - 3, cellSize - 3, 6);
@@ -186,6 +223,33 @@ function render_textbox(ctx, state, startX, endX, startY, endY, cellSize) {
       ctx.fillText(cell.letter.toUpperCase(), cx, cy);
       ctx.restore();
     }
+  });
+
+  // 3. Render Removal Animations (Fading/Shrinking)
+  removalAnimations.forEach(anim => {
+    const elapsed = performance.now() - anim.startTime;
+    const progress = Math.min(elapsed / anim.duration, 1);
+    const opacity = 1 - progress;
+    const scale = 1 - progress * 0.5; // Shrink to 50% size
+
+    const cx = anim.x * cellSize + cellSize / 2;
+    const cy = anim.y * cellSize + cellSize / 2;
+    const tileColor = anim.color || "#4f46e5";
+
+    ctx.save();
+    ctx.globalAlpha = opacity * 0.8; // Start slightly transparent
+    ctx.translate(cx, cy);
+    ctx.scale(scale, scale);
+    ctx.translate(-cx, -cy);
+
+    ctx.fillStyle = tileColor;
+    ctx.beginPath();
+    ctx.roundRect(anim.x * cellSize + 4, anim.y * cellSize + 4, cellSize - 8, cellSize - 8, 6);
+    ctx.fill();
+
+    ctx.fillStyle = "white";
+    ctx.fillText(anim.letter.toUpperCase(), cx, cy);
+    ctx.restore();
   });
 }
 
