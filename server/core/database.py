@@ -10,6 +10,7 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 async def get_db_connection():
+    logger.debug("Acquiring database connection...")
     return await asyncpg.connect(DATABASE_URL)
 
 async def init_db():
@@ -32,6 +33,7 @@ async def init_db():
                 email TEXT,
                 name TEXT,
                 picture TEXT,
+                color_hue INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE (social_id, provider)
@@ -80,10 +82,10 @@ async def get_or_create_user(user_info: dict):
         if user_uuid is None:
             # 유저가 없으면 생성
             user_uuid = await conn.fetchval("""
-                INSERT INTO users (social_id, provider, email, name, picture) 
-                VALUES ($1, $2, $3, $4, $5)
+                INSERT INTO users (social_id, provider, email, name, picture, color_hue) 
+                VALUES ($1, $2, $3, $4, $5, $6)
                 RETURNING user_uuid
-            """, user_info["social_id"], user_info["provider"], user_info.get("email"), user_info.get("name"), user_info.get("picture"))
+            """, user_info["social_id"], user_info["provider"], user_info.get("email"), user_info.get("name"), user_info.get("picture"), user_info.get("color_hue"))
         return user_uuid
     except Exception as e:
         logger.error(f"Database error in get_or_create_user: {e}")
@@ -102,6 +104,7 @@ async def save_game_result(room_code: str, players: dict):
         # players는 {player_uuid: {"name": ..., "score": ...}} 형태라고 가정
         sorted_players = sorted(players.items(), key=lambda x: x[1]["score"], reverse=True)
         winner_uuid = sorted_players[0][0]
+        logger.debug(f"Saving game result for room {room_code}. Winner: {winner_uuid}")
         
         # 2. game 레코드 생성
         game_id = await conn.fetchval("""
@@ -142,7 +145,7 @@ async def get_user_by_uuid(user_uuid: str):
     conn = await get_db_connection()
     try:
         user = await conn.fetchrow("""
-            SELECT social_id, provider, email, name, picture FROM users WHERE user_uuid = $1::uuid
+            SELECT social_id, provider, email, name, picture, color_hue FROM users WHERE user_uuid = $1::uuid
         """, user_uuid)
         return dict(user) if user else None
     except Exception as e:

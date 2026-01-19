@@ -1,7 +1,7 @@
 const canvas = document.getElementById("game-canvas");
 
 export const camera = {
-  x: 20, y: 20, zoom: 40, 
+  x: 20, y: 20, zoom: 40,
   isDragging: false, wasDragging: false,
   lastMouseX: 0, lastMouseY: 0,
   mouseX: 0, mouseY: 0 // Track mouse for the ghost letter
@@ -13,21 +13,21 @@ export function renderCanvas(state) {
   const parent = canvas.parentElement;
   const dpr = window.devicePixelRatio || 1;
   const rect = parent.getBoundingClientRect();
-  
+
   canvas.width = rect.width * dpr;
   canvas.height = rect.height * dpr;
   ctx.scale(dpr, dpr);
 
   // Background
-  ctx.fillStyle = "#f1f5f9"; 
+  ctx.fillStyle = "#f1f5f9";
   ctx.fillRect(0, 0, rect.width, rect.height);
 
   ctx.save();
   ctx.translate(rect.width / 2, rect.height / 2);
-  ctx.scale(camera.zoom / 40, camera.zoom / 40); 
+  ctx.scale(camera.zoom / 40, camera.zoom / 40);
   ctx.translate(-camera.x, -camera.y);
 
-  const cellSize = 40; 
+  const cellSize = 40;
   const viewW = rect.width * (40 / camera.zoom);
   const viewH = rect.height * (40 / camera.zoom);
 
@@ -38,7 +38,7 @@ export function renderCanvas(state) {
   const endY = Math.ceil((camera.y + viewH / 2) / cellSize);
 
   render_grid(ctx, startX, endX, startY, endY, cellSize);
-  render_textbox(ctx,state, startX, endX, startY, endY, cellSize);
+  render_textbox(ctx, state, startX, endX, startY, endY, cellSize);
 
   // --- GHOST PREVIEW ---
   const ghost = screenToWorld(camera.mouseX, camera.mouseY, rect);
@@ -57,7 +57,7 @@ function render_grid(ctx, startX, endX, startY, endY, cellSize) {
       // 1. Draw Tile Background
       ctx.fillStyle = "white";
       ctx.fillRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
-      
+
       // 2. Draw Tile Border
       // Highlight the Axes (0,y and x,0) with a slightly darker color
       ctx.strokeStyle = "#e2e8f0";
@@ -71,13 +71,13 @@ function render_textbox(ctx, state, startX, endX, startY, endY, cellSize) {
   ctx.font = `bold ${cellSize * 0.5}px Lexend, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  
+
   (state.board || []).forEach(cell => {
     // Basic culling: only draw if in view
     if (cell.x >= startX && cell.x <= endX && cell.y >= startY && cell.y <= endY) {
       const cx = cell.x * cellSize + cellSize / 2;
       const cy = cell.y * cellSize + cellSize / 2;
-      
+
       // Draw Letter Tile
       ctx.fillStyle = "#928dfa";
       ctx.shadowColor = "rgba(0,0,0,0.15)";
@@ -116,7 +116,7 @@ canvas.addEventListener('mousemove', (e) => {
     camera.lastMouseX = e.clientX;
     camera.lastMouseY = e.clientY;
   }
-  
+
   // Re-render every time the mouse moves (to update drag or ghost letter)
   renderCanvas(window.lastKnownState || { board: [] });
 });

@@ -5,6 +5,7 @@ from core.logging_config import get_logger
 logger = get_logger(__name__)
 
 def create_guest_user(guest_id: str = None):
+    logger.debug(f"create_guest_user called with guest_id: {guest_id}")
     # guest_id가 없으면 새로 생성
     if not guest_id or guest_id == "null" or guest_id == "undefined":
         guest_id = str(uuid.uuid4())
@@ -19,6 +20,7 @@ def create_guest_user(guest_id: str = None):
             "email": None,
             "name": guest_name,
             "picture": None,
+            "color_hue": random.randint(0, 360),
             "provider": "guest"
         }
     }

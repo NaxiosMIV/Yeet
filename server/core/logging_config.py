@@ -2,9 +2,9 @@ import logging
 import sys
 
 # 로깅 형식 설정
-LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+LOG_FORMAT = "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format=LOG_FORMAT,
     handlers=[
         logging.StreamHandler(sys.stdout)

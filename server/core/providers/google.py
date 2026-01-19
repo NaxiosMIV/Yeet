@@ -11,6 +11,7 @@ load_dotenv()
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 
 async def verify_google_token(token: str = Body(..., embed=True)):
+    logger.debug("verify_google_token called")
     try:
         # Verify the ID token
         id_info = id_token.verify_oauth2_token(token, requests.Request(), GOOGLE_CLIENT_ID)
@@ -28,6 +29,7 @@ async def verify_google_token(token: str = Body(..., embed=True)):
                 "email": email,
                 "name": name,
                 "picture": picture,
+                "color_hue": random.randint(0, 360),
                 "provider": "google"
             }
         }

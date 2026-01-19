@@ -24,6 +24,7 @@ def get_word_in_cache(word: str):
     upper_word = word.upper()
     if upper_word in word_cache:
         length, score = word_cache[upper_word]
+        logger.debug(f"Cache hit for word: {upper_word}")
         return {
             "is_valid": True,
             "word": upper_word,
@@ -33,6 +34,10 @@ def get_word_in_cache(word: str):
     return {"is_valid": False, "word": upper_word}
 
 def get_random_word(min_length: int = 6):
+    """
+    word_cache에서 무작위로 단어를 뽑습니다.
+    """
+    logger.debug(f"get_random_word called with min_length={min_length}")
     eligible_words = [word for word, (length, score) in word_cache.items() if length >= min_length]
     if not eligible_words:
         return None
