@@ -122,6 +122,24 @@ class GameRoom:
             board_dict[(t['x'], t['y'])] = t['letter']
         return board_dict
 
+    def _get_word_at(self, x: int, y: int, direction: str) -> str:
+        """지정된 좌표(x, y)를 포함하는 단어를 추출합니다."""
+        dx, dy = (1, 0) if direction == 'h' else (0, 1)
+        board_dict = self._get_combined_board_dict()
+        
+        # 선형적으로 단어의 시작 찾기
+        curr_x, curr_y = x, y
+        while (curr_x - dx, curr_y - dy) in board_dict:
+            curr_x -= dx
+            curr_y -= dy
+        
+        word = ""
+        while (curr_x, curr_y) in board_dict:
+            word += board_dict[(curr_x, curr_y)]
+            curr_x += dx
+            curr_y += dy
+        return word
+
     def _get_connected_directional_group_ids(self, x: int, y: int, dx: int, dy: int) -> set:
         """지정된 방향(dx, dy)으로 연결된 모든 pending_tile의 group_id를 찾습니다."""
         pending_map = {(t['x'], t['y']): t for t in self.pending_tiles}
@@ -145,9 +163,23 @@ class GameRoom:
     async def handle_place_tile(self, x: int, y: int, letter: str, player_id: str, color: str = None):
         """타일을 대기열에 추가하고 가로/세로 타이머를 처리합니다. 병합 로직 포함."""
         logger.debug(f"handle_place_tile: x={x}, y={y}, letter={letter}, player={player_id}, color={color}")
+        
+        if player_id not in self.players:
+            return False, "Player not found"
+            
+        player = self.players[player_id]
+        letter_upper = letter.upper()
+
         if any(t for t in self.board if t['x'] == x and t['y'] == y) or \
            any(t for t in self.pending_tiles if t['x'] == x and t['y'] == y):
             return False, "Tile already exists at this position"
+
+        # 핸드 체크 (현재 보류 중인 타일도 고려)
+        hand_count = player.hand.count(letter_upper)
+        pending_count = sum(1 for pt in self.pending_tiles if pt['player_id'] == player_id and pt.get('letter', '').upper() == letter_upper)
+        
+        if pending_count >= hand_count:
+            return False, f"Not enough {letter_upper} in hand"
 
         # 방향별 그룹 처리
         def process_direction(dx, dy, prefix):
@@ -184,18 +216,43 @@ class GameRoom:
             'v_group_id': v_group_id
         })
 
-        # 타이머 리셋 (가로/세로)
-        for gid, prefix in [(h_group_id, "h"), (v_group_id, "v")]:
-            key = f"{prefix}:{gid}"
-            if key in self.group_timers: self.group_timers[key].cancel()
-            self.group_timers[key] = asyncio.create_task(self._wait_and_finalize_group(gid, prefix))
+        # 즉시 검증 시도
+        finalized_h = False
+        finalized_v = False
+        
+        # 가로 즉시 검증
+        h_word = self._get_word_at(x, y, 'h')
+        if len(h_word) > 1 and get_word_in_cache(h_word).get("is_valid"):
+            await self.finalize_pending_group(h_group_id, 'h')
+            finalized_h = True
+            
+        # 세로 즉시 검증
+        v_word = self._get_word_at(x, y, 'v')
+        if len(v_word) > 1 and get_word_in_cache(v_word).get("is_valid"):
+            await self.finalize_pending_group(v_group_id, 'v')
+            finalized_v = True
 
-        await self.broadcast({"type": "UPDATE", "state": self.get_state(), "timer": 5})
+        # 확정되지 않은 방향만 타이머 시작
+        if not finalized_h:
+            key = f"h:{h_group_id}"
+            if key in self.group_timers: self.group_timers[key].cancel()
+            self.group_timers[key] = asyncio.create_task(self._wait_and_finalize_group(h_group_id, "h"))
+            
+        if not finalized_v:
+            key = f"v:{v_group_id}"
+            if key in self.group_timers: self.group_timers[key].cancel()
+            self.group_timers[key] = asyncio.create_task(self._wait_and_finalize_group(v_group_id, "v"))
+
+        if finalized_h or finalized_v:
+             await self.broadcast({"type": "UPDATE", "state": self.get_state()})
+        else:
+             await self.broadcast({"type": "UPDATE", "state": self.get_state(), "timer": 3})
+             
         return True, None
 
     async def _wait_and_finalize_group(self, group_id: str, direction: str):
         try:
-            await asyncio.sleep(5)
+            await asyncio.sleep(3)
             await self.finalize_pending_group(group_id, direction)
         except asyncio.CancelledError:
             pass
@@ -207,23 +264,7 @@ class GameRoom:
         if not group_tiles: return
 
         # 단어 형성 및 검증
-        # 그룹 내 어떤 타일로부터 시작해도 같은 한 줄의 단어가 나옴
-        t = group_tiles[0]
-        dx, dy = (1, 0) if direction == 'h' else (0, 1)
-        board_dict = self._get_combined_board_dict()
-        
-        # 선형적으로 단어 찾기
-        curr_x, curr_y = t['x'], t['y']
-        while (curr_x - dx, curr_y - dy) in board_dict:
-            curr_x -= dx
-            curr_y -= dy
-        
-        word = ""
-        while (curr_x, curr_y) in board_dict:
-            word += board_dict[(curr_x, curr_y)]
-            curr_x += dx
-            curr_y += dy
-
+        word = self._get_word_at(group_tiles[0]['x'], group_tiles[0]['y'], direction)
         result = get_word_in_cache(word) if len(word) > 1 else {"is_valid": False}
         
         if result.get("is_valid"):
@@ -236,6 +277,8 @@ class GameRoom:
                     # 점수 추가 (단어 점수)
                     if gt['player_id'] in self.players:
                         self.players[gt['player_id']].score += result['score'] // len(group_tiles)
+                        # 보충
+                        self.draw_tiles_for_player(gt['player_id'], 1)
             
             # 성공 메시지
             await self.broadcast({"type": "MODAL", "message": f"Word completed ({direction}): {word}"})
