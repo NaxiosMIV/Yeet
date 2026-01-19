@@ -249,15 +249,47 @@ function joinGame(room, name) {
 
 // Canvas Interaction
 elements.canvas.addEventListener('click', (e) => {
+  console.log("Canvas clicked. wasDragging:", camera.wasDragging);
   if (camera.wasDragging) return;
   const rect = elements.canvas.getBoundingClientRect();
   const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top, rect);
-  const char = prompt("Enter a letter:");
 
-  if (char && char.length === 1 && globalWs?.readyState === WebSocket.OPEN) {
-    globalWs.send(JSON.stringify({
-      type: "PLACE", x: worldPos.tileX, y: worldPos.tileY, letter: char.toUpperCase()
-    }));
+  // Set selected tile on window for better compatibility across files
+  window.selectedTile = { x: worldPos.tileX, y: worldPos.tileY };
+  console.log("Selected tile set to:", window.selectedTile);
+  renderCanvas(window.lastKnownState || { board: [] });
+});
+
+// Keyboard Interaction
+window.addEventListener('keydown', (e) => {
+  const selection = window.selectedTile;
+  console.log("Key pressed:", e.key, "Current selection:", selection);
+
+  // Only handle if a tile is selected and it's a single letter
+  if (selection && e.key.length === 1 && /[a-zA-Z]/.test(e.key)) {
+    if (globalWs?.readyState === WebSocket.OPEN) {
+      const { x, y } = selection;
+      const letter = e.key.toUpperCase();
+
+      console.log("Sending PLACE message for:", letter, "at", x, y);
+      globalWs.send(JSON.stringify({ type: "PLACE", x, y, letter }));
+
+      // --- OPTIMISTIC UI ---
+      if (!window.lastKnownState) window.lastKnownState = { board: [], pending_tiles: [] };
+      if (!window.lastKnownState.pending_tiles) window.lastKnownState.pending_tiles = [];
+
+      // Update local state for immediate feedback
+      window.lastKnownState.pending_tiles.push({ x, y, letter });
+
+      // Move selection to the right for easier typing
+      window.selectedTile.x += 1;
+      renderCanvas(window.lastKnownState);
+    } else {
+      console.warn("WebSocket not open, cannot send PLACE");
+    }
+  } else if (e.key === "Escape") {
+    window.selectedTile = null;
+    renderCanvas(window.lastKnownState || { board: [] });
   }
 });
 

@@ -4,7 +4,9 @@ export const camera = {
   x: 20, y: 20, zoom: 40,
   isDragging: false, wasDragging: false,
   lastMouseX: 0, lastMouseY: 0,
-  mouseX: 0, mouseY: 0 // Track mouse for the ghost letter
+  dragStartX: 0, dragStartY: 0, // Track start of drag
+  mouseX: 0, mouseY: 0, // Track mouse for the ghost letter
+  selectedTile: null // Track currently selected tile for keyboard input
 };
 
 export function renderCanvas(state) {
@@ -45,6 +47,14 @@ export function renderCanvas(state) {
   ctx.fillStyle = "rgba(79, 70, 229, 0.1)";
   ctx.fillRect(ghost.tileX * cellSize, ghost.tileY * cellSize, cellSize, cellSize);
 
+  // --- SELECTION HIGHLIGHT ---
+  const selection = window.selectedTile;
+  if (selection) {
+    ctx.strokeStyle = "#4f46e5";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(selection.x * cellSize, selection.y * cellSize, cellSize, cellSize);
+  }
+
   ctx.restore();
 }
 
@@ -72,13 +82,12 @@ function render_textbox(ctx, state, startX, endX, startY, endY, cellSize) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
+  // 1. Render Confirmed Board Tiles
   (state.board || []).forEach(cell => {
-    // Basic culling: only draw if in view
     if (cell.x >= startX && cell.x <= endX && cell.y >= startY && cell.y <= endY) {
       const cx = cell.x * cellSize + cellSize / 2;
       const cy = cell.y * cellSize + cellSize / 2;
 
-      // Draw Letter Tile
       ctx.fillStyle = "#928dfa";
       ctx.shadowColor = "rgba(0,0,0,0.15)";
       ctx.shadowBlur = 5;
@@ -86,6 +95,26 @@ function render_textbox(ctx, state, startX, endX, startY, endY, cellSize) {
       ctx.shadowBlur = 0;
 
       ctx.fillStyle = "#4f46e5";
+      ctx.fillText(cell.letter.toUpperCase(), cx, cy);
+    }
+  });
+
+  // 2. Render Pending Tiles (Optimistic or from Server)
+  (state.pending_tiles || []).forEach(cell => {
+    if (cell.x >= startX && cell.x <= endX && cell.y >= startY && cell.y <= endY) {
+      const cx = cell.x * cellSize + cellSize / 2;
+      const cy = cell.y * cellSize + cellSize / 2;
+
+      // Use a dashed look or lower opacity for pending
+      ctx.fillStyle = "rgba(146, 141, 250, 0.4)";
+      ctx.fillRect(cell.x * cellSize + 4, cell.y * cellSize + 4, cellSize - 8, cellSize - 8);
+
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = "#4f46e5";
+      ctx.strokeRect(cell.x * cellSize + 4, cell.y * cellSize + 4, cellSize - 8, cellSize - 8);
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = "rgba(79, 70, 229, 0.6)";
       ctx.fillText(cell.letter.toUpperCase(), cx, cy);
     }
   });
@@ -109,7 +138,12 @@ canvas.addEventListener('mousemove', (e) => {
   camera.mouseY = e.clientY - rect.top;
 
   if (camera.isDragging) {
-    camera.wasDragging = true;
+    const dx = e.clientX - camera.dragStartX;
+    const dy = e.clientY - camera.dragStartY;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+      camera.wasDragging = true;
+    }
+
     const factor = 40 / camera.zoom;
     camera.x -= (e.clientX - camera.lastMouseX) * factor;
     camera.y -= (e.clientY - camera.lastMouseY) * factor;
@@ -126,6 +160,8 @@ canvas.addEventListener('mousedown', (e) => {
   camera.wasDragging = false;
   camera.lastMouseX = e.clientX;
   camera.lastMouseY = e.clientY;
+  camera.dragStartX = e.clientX;
+  camera.dragStartY = e.clientY;
 });
 
 window.addEventListener('mouseup', () => {
