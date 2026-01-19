@@ -37,6 +37,9 @@ class GameRoom:
         self.status = "PLAYING" # WAITING, PLAYING, FINISHED
         self.created_at = time.time()
         self.group_timers: Dict[str, asyncio.Task] = {} # "h:{id}" or "v:{id}" -> timer_task
+        self.room_timer_task: Optional[asyncio.Task] = None
+        self.duration: int = 0
+        self.start_time: Optional[float] = None
         
         # 초기 단어 생성
         self._initialize_starting_word()
@@ -79,12 +82,18 @@ class GameRoom:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     def get_state(self):
+        remaining_time = 0
+        if self.start_time and self.duration:
+            elapsed = time.time() - self.start_time
+            remaining_time = max(0, self.duration - int(elapsed))
+
         return {
             "board": self.board,
             "pending_tiles": self.pending_tiles,
             "players": {pid: p.to_dict() for pid, p in self.players.items()},
             "status": self.status,
-            "room_code": self.room_code
+            "room_code": self.room_code,
+            "remaining_time": remaining_time
         }
 
     def place_tile(self, x: int, y: int, letter: str, player_id: str, points: int, color: str = None):
@@ -263,6 +272,10 @@ class GameRoom:
 
     async def handle_end_game(self):
         """게임을 종료하고 결과를 저장합니다."""
+        if self.room_timer_task:
+            self.room_timer_task.cancel()
+            self.room_timer_task = None
+
         # 대기 중인 모든 그룹 즉시 처리
         for key in list(self.group_timers.keys()):
             self.group_timers[key].cancel()
@@ -272,7 +285,40 @@ class GameRoom:
         players_data = {pid: p.to_dict() for pid, p in self.players.items()}
         game_id = await save_game_result(self.room_code, players_data)
         self.status = "FINISHED"
+        
+        # 방 제거 예약 (1분 뒤)
+        asyncio.create_task(self._cleanup_room())
+        
         return game_id
+
+    async def _cleanup_room(self):
+        await asyncio.sleep(60)
+        room_manager.remove_room(self.room_code)
+        logger.info(f"Room {self.room_code} cleaned up and removed.")
+
+    def start_timer(self, duration: int):
+        """방 전체 타이머를 시작합니다."""
+        if self.room_timer_task:
+            self.room_timer_task.cancel()
+        
+        self.duration = duration
+        self.start_time = time.time()
+        self.room_timer_task = asyncio.create_task(self._run_timer(duration))
+        logger.info(f"Room timer started for {self.room_code}: {duration}s")
+
+    async def _run_timer(self, duration: int):
+        try:
+            await asyncio.sleep(duration)
+            logger.info(f"Timer expired for room {self.room_code}. Finalizing game.")
+            game_id = await self.handle_end_game()
+            await self.broadcast({
+                "type": "GAME_OVER",
+                "game_id": game_id,
+                "state": self.get_state(),
+                "reason": "TIMER_EXPIRED"
+            })
+        except asyncio.CancelledError:
+            logger.debug(f"Room timer for {self.room_code} cancelled.")
 
 class RoomManager:
     def __init__(self):

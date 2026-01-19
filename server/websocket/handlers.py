@@ -60,6 +60,11 @@ async def handle_websocket(ws: WebSocket):
                 await ws.send_json({"type": "DRAWN_TILES", "tiles": new_tiles})
                 # Broadcast updated player state (hand changed)
                 await room.broadcast({"type": "UPDATE", "state": room.get_state()})
+
+            elif data["type"] == "START_TIMER":
+                duration = data.get("duration", 60)
+                room.start_timer(duration)
+                await room.broadcast({"type": "UPDATE", "state": room.get_state()})
             
             elif data["type"] == "CHAT":
                 message = data.get("message", "")
