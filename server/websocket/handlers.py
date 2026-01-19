@@ -45,7 +45,8 @@ async def handle_websocket(ws: WebSocket):
 
             if data["type"] == "PLACE":
                 x, y, letter = data["x"], data["y"], data["letter"]
-                success, error_message = await room.handle_place_tile(x, y, letter, user_uuid)
+                color = data.get("color", "#4f46e5")
+                success, error_message = await room.handle_place_tile(x, y, letter, user_uuid, color)
                 
                 if not success:
                     await ws.send_json({"type": "ERROR", "message": error_message})
