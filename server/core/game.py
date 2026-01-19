@@ -226,6 +226,12 @@ class GameRoom:
                 return not h_active and not v_active
 
             # 양쪽 다 끝났는데도 보드에 못 올라갔다면(유효한 단어가 없다면) 제거
+            to_remove = [pt for pt in self.pending_tiles if should_remove(pt)]
+            if to_remove:
+                removed_coords = [{"x": rt["x"], "y": rt["y"]} for rt in to_remove]
+                logger.debug(f"Broadcasting TILE_REMOVED for coordinates: {removed_coords}")
+                await self.broadcast({"type": "TILE_REMOVED", "coords": removed_coords})
+
             self.pending_tiles = [pt for pt in self.pending_tiles if not should_remove(pt)]
 
         # 타이머 정리 및 업데이트

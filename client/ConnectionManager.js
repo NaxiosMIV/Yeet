@@ -309,6 +309,13 @@ function joinGame(room, name) {
   globalWs.onmessage = (e) => {
     const data = JSON.parse(e.data);
 
+    if (data.type === "TILE_REMOVED" && data.coords) {
+      import("./RenderCanvas.js").then(module => {
+        module.triggerRemovalAnimation(data.coords);
+      });
+      return;
+    }
+
     if (!data.state) return;
     if (data.type === "INIT") window.myPlayerId = data.playerId;
 
