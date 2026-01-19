@@ -31,24 +31,20 @@ class Player:
 class GameRoom:
     def __init__(self, room_code):
         self.room_code = room_code
-        self.players = {} 
-        self.state = "LOBBY" 
         self.settings = {
             "mode": "classic",
             "max_players": 10
         }
-        self.board = []
-        self.pending_tiles = [] # Added missing init
-        self.group_timers = {}  # Added missing init
-        self.board: List[Dict] = []
+        self.board: Dict[tuple, Dict] = {} # (x, y) -> {'x': x, 'y': y, 'letter': letter, 'color': color}
         self.pending_tiles: List[Dict] = []
         self.players: Dict[str, Player] = {}
-        self.status = "PLAYING" # WAITING, PLAYING, FINISHED
+        self.status = "LOBBY" # LOBBY, INGAME, FINISHED
         self.created_at = time.time()
         self.group_timers: Dict[str, asyncio.Task] = {} # "h:{id}" or "v:{id}" -> timer_task
         self.room_timer_task: Optional[asyncio.Task] = None
         self.duration: int = 0
         self.start_time: Optional[float] = None
+        self.lock = asyncio.Lock()
         
         # 초기 단어 생성
         self._initialize_starting_word()
@@ -59,7 +55,8 @@ class GameRoom:
             # 중앙에 배치 (가로)
             start_x = -(len(word) // 2)
             for i, letter in enumerate(word):
-                self.board.append({'x': start_x + i, 'y': 0, 'letter': letter})
+                pos = (start_x + i, 0)
+                self.board[pos] = {'x': pos[0], 'y': pos[1], 'letter': letter.upper(), 'color': '#6366F1'}
             logger.info(f"Initialized room {self.room_code} with word: {word}")
 
     def add_player(self, player: Player):
@@ -94,7 +91,7 @@ class GameRoom:
         await self.broadcast({"type": "UPDATE", "state": self.get_state()})
 
     def start_match(self):
-        self.state = "INGAME"
+        self.status = "INGAME"
         if not self.board:
             self._initialize_starting_word()
         
@@ -111,27 +108,19 @@ class GameRoom:
 
         return {
             "room_code": self.room_code,
-            "state": self.state,
+            "status": self.status,
             "settings": self.settings,
             "players": {
-                uuid: {
-                    "name": p.name,
-                    "color": p.color,
-                    "score": p.score,
-                    "hand": p.hand if self.state == "INGAME" else []
-                } for uuid, p in self.players.items()
+                pid: p.to_dict() for pid, p in self.players.items()
             },
-            "board": self.board,
+            "board": list(self.board.values()),
             "pending_tiles": self.pending_tiles,
-            "players": {pid: p.to_dict() for pid, p in self.players.items()},
-            "status": self.status,
-            "room_code": self.room_code,
             "remaining_time": remaining_time
         }
 
     def place_tile(self, x: int, y: int, letter: str, player_id: str, points: int, color: str = None):
         # 타일 존재 여부 체크 (보드 및 대기열)
-        if any(t for t in self.board if t['x'] == x and t['y'] == y):
+        if (x, y) in self.board:
             return False
         
         # Check hand
@@ -142,15 +131,16 @@ class GameRoom:
                 return False
             
             # Remove from hand
-            player.hand.remove(letter.upper())
+            if letter.upper() in player.hand:
+                player.hand.remove(letter.upper())
 
-        self.board.append({'x': x, 'y': y, 'letter': letter, 'color': color})
+        self.board[(x, y)] = {'x': x, 'y': y, 'letter': letter, 'color': color}
         if player_id in self.players:
             self.players[player_id].score += points
         return True
 
     def _get_combined_board_dict(self):
-        board_dict = {(t['x'], t['y']): t['letter'] for t in self.board}
+        board_dict = {pos: t['letter'] for pos, t in self.board.items()}
         for t in self.pending_tiles:
             board_dict[(t['x'], t['y'])] = t['letter']
         return board_dict
@@ -176,7 +166,7 @@ class GameRoom:
     def _get_connected_directional_group_ids(self, x: int, y: int, dx: int, dy: int) -> set:
         """지정된 방향(dx, dy)으로 연결된 모든 pending_tile의 group_id를 찾습니다."""
         pending_map = {(t['x'], t['y']): t for t in self.pending_tiles}
-        board_tiles = {(t['x'], t['y']) for t in self.board}
+        board_tiles = self.board # Dictionary keys are coordinates
         dir_key = 'h_group_id' if dx != 0 else 'v_group_id'
         found_groups = set()
 
@@ -195,93 +185,94 @@ class GameRoom:
 
     async def handle_place_tile(self, x: int, y: int, letter: str, player_id: str, color: str = None):
         """타일을 대기열에 추가하고 가로/세로 타이머를 처리합니다. 병합 로직 포함."""
-        logger.debug(f"handle_place_tile: x={x}, y={y}, letter={letter}, player={player_id}, color={color}")
-        
-        if player_id not in self.players:
-            return False, "Player not found"
+        async with self.lock:
+            logger.debug(f"handle_place_tile: x={x}, y={y}, letter={letter}, player={player_id}, color={color}")
             
-        player = self.players[player_id]
-        letter_upper = letter.upper()
+            if player_id not in self.players:
+                return False, "Player not found"
+                
+            player = self.players[player_id]
+            letter_upper = letter.upper()
 
-        if any(t for t in self.board if t['x'] == x and t['y'] == y) or \
-           any(t for t in self.pending_tiles if t['x'] == x and t['y'] == y):
-            return False, "Tile already exists at this position"
+            if (x, y) in self.board or \
+               any(t for t in self.pending_tiles if t['x'] == x and t['y'] == y):
+                return False, "Tile already exists at this position"
 
-        # 핸드 체크 (현재 보류 중인 타일도 고려)
-        hand_count = player.hand.count(letter_upper)
-        pending_count = sum(1 for pt in self.pending_tiles if pt['player_id'] == player_id and pt.get('letter', '').upper() == letter_upper)
-        
-        if pending_count >= hand_count:
-            return False, f"Not enough {letter_upper} in hand"
-
-        # 방향별 그룹 처리
-        def process_direction(dx, dy, prefix):
-            found = self._get_connected_directional_group_ids(x, y, dx, dy)
-            dir_key = 'h_group_id' if dx != 0 else 'v_group_id'
+            # 핸드 체크 (현재 보류 중인 타일도 고려)
+            hand_count = player.hand.count(letter_upper)
+            pending_count = sum(1 for pt in self.pending_tiles if pt['player_id'] == player_id and pt.get('letter', '').upper() == letter_upper)
             
-            if not found:
-                gid = str(uuid.uuid4())
+            if pending_count >= hand_count:
+                return False, f"Not enough {letter_upper} in hand"
+
+            # 방향별 그룹 처리
+            def process_direction(dx, dy, prefix):
+                found = self._get_connected_directional_group_ids(x, y, dx, dy)
+                dir_key = 'h_group_id' if dx != 0 else 'v_group_id'
+                
+                if not found:
+                    gid = str(uuid.uuid4())
+                else:
+                    glist = list(found)
+                    gid = glist[0]
+                    if len(glist) > 1:
+                        # 병합 로직
+                        for other_id in glist[1:]:
+                            for pt in self.pending_tiles:
+                                if pt.get(dir_key) == other_id:
+                                    pt[dir_key] = gid
+                            # 기존 타이머 제거
+                            other_key = f"{prefix}:{other_id}"
+                            if other_key in self.group_timers:
+                                self.group_timers[other_key].cancel()
+                                del self.group_timers[other_key]
+                return gid
+
+            h_group_id = process_direction(1, 0, "h")
+            v_group_id = process_direction(0, 1, "v")
+
+            # 타일 추가
+            self.pending_tiles.append({
+                'x': x, 'y': y, 'letter': letter, 
+                'player_id': player_id, 
+                'color': color,
+                'h_group_id': h_group_id, 
+                'v_group_id': v_group_id
+            })
+
+            # 즉시 검증 시도
+            finalized_h = False
+            finalized_v = False
+            
+            # 가로 즉시 검증
+            h_word = self._get_word_at(x, y, 'h')
+            if len(h_word) > 1 and get_word_in_cache(h_word).get("is_valid"):
+                await self.finalize_pending_group(h_group_id, 'h')
+                finalized_h = True
+                
+            # 세로 즉시 검증
+            v_word = self._get_word_at(x, y, 'v')
+            if len(v_word) > 1 and get_word_in_cache(v_word).get("is_valid"):
+                await self.finalize_pending_group(v_group_id, 'v')
+                finalized_v = True
+
+            # 확정되지 않은 방향만 타이머 시작
+            if not finalized_h:
+                key = f"h:{h_group_id}"
+                if key in self.group_timers: self.group_timers[key].cancel()
+                self.group_timers[key] = asyncio.create_task(self._wait_and_finalize_group(h_group_id, "h"))
+                
+            if not finalized_v:
+                key = f"v:{v_group_id}"
+                if key in self.group_timers: self.group_timers[key].cancel()
+                self.group_timers[key] = asyncio.create_task(self._wait_and_finalize_group(v_group_id, "v"))
+
+            if finalized_h or finalized_v:
+                 await self.broadcast({"type": "UPDATE", "state": self.get_state()})
             else:
-                glist = list(found)
-                gid = glist[0]
-                if len(glist) > 1:
-                    # 병합 로직
-                    for other_id in glist[1:]:
-                        for pt in self.pending_tiles:
-                            if pt.get(dir_key) == other_id:
-                                pt[dir_key] = gid
-                        # 기존 타이머 제거
-                        other_key = f"{prefix}:{other_id}"
-                        if other_key in self.group_timers:
-                            self.group_timers[other_key].cancel()
-                            del self.group_timers[other_key]
-            return gid
-
-        h_group_id = process_direction(1, 0, "h")
-        v_group_id = process_direction(0, 1, "v")
-
-        # 타일 추가
-        self.pending_tiles.append({
-            'x': x, 'y': y, 'letter': letter, 
-            'player_id': player_id, 
-            'color': color,
-            'h_group_id': h_group_id, 
-            'v_group_id': v_group_id
-        })
-
-        # 즉시 검증 시도
-        finalized_h = False
-        finalized_v = False
-        
-        # 가로 즉시 검증
-        h_word = self._get_word_at(x, y, 'h')
-        if len(h_word) > 1 and get_word_in_cache(h_word).get("is_valid"):
-            await self.finalize_pending_group(h_group_id, 'h')
-            finalized_h = True
-            
-        # 세로 즉시 검증
-        v_word = self._get_word_at(x, y, 'v')
-        if len(v_word) > 1 and get_word_in_cache(v_word).get("is_valid"):
-            await self.finalize_pending_group(v_group_id, 'v')
-            finalized_v = True
-
-        # 확정되지 않은 방향만 타이머 시작
-        if not finalized_h:
-            key = f"h:{h_group_id}"
-            if key in self.group_timers: self.group_timers[key].cancel()
-            self.group_timers[key] = asyncio.create_task(self._wait_and_finalize_group(h_group_id, "h"))
-            
-        if not finalized_v:
-            key = f"v:{v_group_id}"
-            if key in self.group_timers: self.group_timers[key].cancel()
-            self.group_timers[key] = asyncio.create_task(self._wait_and_finalize_group(v_group_id, "v"))
-
-        if finalized_h or finalized_v:
-             await self.broadcast({"type": "UPDATE", "state": self.get_state()})
-        else:
-             await self.broadcast({"type": "UPDATE", "state": self.get_state(), "timer": 3})
-             
-        return True, None
+                 await self.broadcast({"type": "UPDATE", "state": self.get_state(), "timer": 3})
+                 
+            return True, None
 
     async def _wait_and_finalize_group(self, group_id: str, direction: str):
         try:
@@ -328,26 +319,41 @@ class GameRoom:
             
             # A. 보드에 이미 있던 타일들의 색상을 새 색상으로 업데이트
             for bx, by in word_coords:
-                for board_tile in self.board:
-                    if board_tile['x'] == bx and board_tile['y'] == by:
-                        board_tile['color'] = new_color
-                        break
+                if (bx, by) in self.board:
+                    self.board[(bx, by)]['color'] = new_color
 
             # B. 신규 대기 타일들을 보드로 이동 (place_tile 내에서 color 적용)
             for gt in group_tiles:
+                # 중복 방지: 이미 보드에 있는 타일인지 확인
+                if (gt['x'], gt['y']) in self.board:
+                    continue
+
                 if self.place_tile(gt['x'], gt['y'], gt['letter'], gt['player_id'], 10, new_color):
                     if gt['player_id'] in self.players:
                         self.players[gt['player_id']].score += result['score'] // len(group_tiles)
-            await self.broadcast_state()
-            await self.broadcast({"type": "MODAL", "message": f"Word completed: {word}"})
                         # 보충
                         self.draw_tiles_for_player(gt['player_id'], 1)
+
+            await self.broadcast_state()
+            await self.broadcast({"type": "MODAL", "message": f"Word completed: {word}"})
             
             # pending_tiles 정리
-            self.pending_tiles = [pt for pt in self.pending_tiles if not any(bt for bt in self.board if bt['x'] == pt['x'] and bt['y'] == pt['y'])]
+            self.pending_tiles = [pt for pt in self.pending_tiles if (pt['x'], pt['y']) not in self.board]
         
         else:
-            # ... (기존 Invalid 처리 로직 동일) ...
+            # Invalid Word Penalty
+            penalty_points = 10
+            penalized_players = set()
+            for gt in group_tiles:
+                pid = gt['player_id']
+                if pid in self.players:
+                    self.players[pid].score = max(0, self.players[pid].score - penalty_points)
+                    penalized_players.add(pid)
+            
+            if penalized_players:
+                logger.info(f"Penalty applied to players {penalized_players} for invalid word: {word}")
+                await self.broadcast({"type": "MODAL", "message": f"Invalid word: {word}. -{penalty_points} points penalty!"})
+
             for gt in group_tiles:
                 gt[dir_key] = None
             
@@ -428,15 +434,4 @@ class RoomManager:
         if room_code in self.rooms:
             del self.rooms[room_code]
 
-class SessionManager:
-    def __init__(self, code):
-        self.code = code
-        self.players = {}
-        self.state = "LOBBY" # New state tracker
-        self.board = []
-
-    async def broadcast_state(self):
-        await self.broadcast({"type": "UPDATE", "state": self.get_state()})
-
 room_manager = RoomManager()
-session_manager = SessionManager("GLOBAL")
