@@ -6,7 +6,7 @@ from core.providers.google import verify_google_token
 from core.providers.guest import create_guest_user
 from core.auth_utils import create_access_token, decode_access_token
 import os
-from core.database import get_or_create_user, get_user_by_uuid
+from core.database import get_or_create_user, get_user_by_uuid, update_user_color_hue
 from core.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -85,3 +85,22 @@ async def logout(response: Response):
     logger.debug("Logout called")
     delete_auth_cookie(response)
     return {"status": "success"}
+
+@router.post("/color-hue")
+async def update_hue(request: Request, color_hue: int = Body(..., embed=True)):
+    logger.debug(f"update_hue called with hue: {color_hue}")
+    session_id = request.cookies.get("session_id")
+    if not session_id:
+        raise HTTPException(status_code=401, detail="세션이 없습니다.")
+    
+    payload = decode_access_token(session_id)
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=401, detail="유효하지 않은 세션입니다.")
+    
+    user_uuid = payload.get("user_uuid")
+    success = await update_user_color_hue(user_uuid, color_hue)
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="색상 변경에 실패했습니다.")
+    
+    return {"status": "success", "color_hue": color_hue}
