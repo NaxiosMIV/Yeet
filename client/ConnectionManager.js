@@ -105,50 +105,77 @@ const setupUIEvents = () => {
   // Color Picker Logic
   // 1. Local UI Updates (Fast & Smooth)
   elements.hueSlider.oninput = (e) => {
-      const hue = e.target.value;
-      const hexColor = hslToHex(hue, 70, 60);
+    const hue = e.target.value;
+    const hexColor = hslToHex(hue, 70, 60);
 
-      // Update UI instantly via CSS Variables
-      document.documentElement.style.setProperty('--user-color', hexColor);
-      
-      selectedColor = `hsl(${hue}, 70%, 60%)`;
-      elements.colorPreview.style.backgroundColor = selectedColor;
-      elements.userDisplayName.style.color = selectedColor;
+    // Update UI instantly via CSS Variables
+    document.documentElement.style.setProperty('--user-color', hexColor);
 
-      // Update Button and Tabs
-      elements.startBtn.className = "w-full bg-[var(--user-color)] text-white py-4 rounded-2xl font-bold shadow-lg";
-      
-      if (mode === "create") {
-        elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[var(--user-color)]";
-      } else if (mode === "join") {
-        elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[var(--user-color)]";
-      }
+    selectedColor = `hsl(${hue}, 70%, 60%)`;
+    elements.colorPreview.style.backgroundColor = selectedColor;
+    elements.userDisplayName.style.color = selectedColor;
+
+    // Update Button and Tabs
+    elements.startBtn.className = "w-full bg-[var(--user-color)] text-white py-4 rounded-2xl font-bold shadow-lg";
+
+    if (mode === "create") {
+      elements.createTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[var(--user-color)]";
+    } else if (mode === "join") {
+      elements.joinTab.className = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[var(--user-color)]";
+    }
   };
 
   // 2. Persistent Backend Update (Saves to DB/Session)
   elements.hueSlider.onchange = async (e) => {
     const hueValue = parseInt(e.target.value);
-    
+
     console.log(`Syncing hue ${hueValue} to backend...`);
 
     try {
-        const response = await fetch('/auth/color-hue', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            // Matches your FastAPI: color_hue: int = Body(..., embed=True)
-            body: JSON.stringify({ color_hue: hueValue })
-        });
+      const response = await fetch('/auth/color-hue', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // Matches your FastAPI: color_hue: int = Body(..., embed=True)
+        body: JSON.stringify({ color_hue: hueValue })
+      });
 
-        if (!response.ok) {
-            const error = await response.json();
-            console.error("Backend color sync failed:", error.detail);
-        } else {
-            console.log("Backend color sync success!");
-        }
+      if (!response.ok) {
+        const error = await response.json();
+        console.error("Backend color sync failed:", error.detail);
+      } else {
+        console.log("Backend color sync success!");
+      }
     } catch (err) {
-        console.error("Network error during color sync:", err);
+      console.error("Network error during color sync:", err);
+    }
+  };
+
+  // 2. Persistent Backend Update (Saves to DB/Session)
+  elements.hueSlider.onchange = async (e) => {
+    const hueValue = parseInt(e.target.value);
+
+    console.log(`Syncing hue ${hueValue} to backend...`);
+
+    try {
+      const response = await fetch('/auth/color-hue', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // Matches your FastAPI: color_hue: int = Body(..., embed=True)
+        body: JSON.stringify({ color_hue: hueValue })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error("Backend color sync failed:", error.detail);
+      } else {
+        console.log("Backend color sync success!");
+      }
+    } catch (err) {
+      console.error("Network error during color sync:", err);
     }
   };
 
@@ -238,17 +265,17 @@ const handleLoginSuccess = (name, isAuthorized = false, savedHue = 231) => {
   // 1. APPLY THE LOADED HUE IMMEDIATELY
   if (elements.hueSlider) {
     elements.hueSlider.value = savedHue;
-    
+
     // Manually trigger the visual update logic
     const hexColor = hslToHex(savedHue, 70, 60);
     document.documentElement.style.setProperty('--user-color', hexColor);
-    
+
     selectedColor = `hsl(${savedHue}, 70%, 60%)`;
     elements.colorPreview.style.backgroundColor = selectedColor;
     elements.userDisplayName.style.color = selectedColor;
 
     elements.startBtn.className = "w-full bg-[var(--user-color)] text-white py-4 rounded-2xl font-bold shadow-lg";
-    
+
     const activeTabClass = "flex-1 py-2.5 rounded-xl font-bold text-sm bg-white shadow text-[var(--user-color)]";
     if (mode === "create") elements.createTab.className = activeTabClass;
     else elements.joinTab.className = activeTabClass;
