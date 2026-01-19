@@ -135,6 +135,6 @@ window.addEventListener('mouseup', () => {
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
   const delta = e.deltaY > 0 ? 0.9 : 1.1;
-  camera.zoom = Math.min(Math.max(camera.zoom * delta, 5), 50);
+  camera.zoom = Math.min(Math.max(camera.zoom * delta, 15), 200);
   renderCanvas(window.lastKnownState || { board: [] });
 }, { passive: false });
