@@ -126,13 +126,13 @@ class GameRoom:
             "remaining_time": remaining_time
         }
 
-    def place_tile(self, x: int, y: int, letter: str, player_id: str, points: int, color: str = None):
+    def place_tile(self, x: int, y: int, letter: str, player_id: str, points: int, color: str = None, consume_hand: bool = True):
         # 타일 존재 여부 체크 (보드 및 대기열)
         if (x, y) in self.board:
             return False
         
         # Check hand
-        if player_id in self.players:
+        if consume_hand and player_id in self.players:
             player = self.players[player_id]
             if letter.upper() not in player.hand:
                 logger.warning(f"Player {player.name} tried to place {letter} but they don't have it in hand: {player.hand}")
@@ -378,22 +378,24 @@ class GameRoom:
                     self.board[(bx, by)]['color'] = new_color
 
             # B. 신규 대기 타일들을 보드로 이동 (place_tile 내에서 color 적용)
+            # B. 신규 대기 타일들을 보드로 이동
             for gt in group_tiles:
                 # 중복 방지: 이미 보드에 있는 타일인지 확인
                 if (gt['x'], gt['y']) in self.board:
                     continue
 
-                if self.place_tile(gt['x'], gt['y'], gt['letter'], gt['player_id'], 10, new_color):
+                # IMPORTANT: consume_hand=False because it was already consumed in handle_place_tile
+                if self.place_tile(gt['x'], gt['y'], gt['letter'], gt['player_id'], 10, new_color, consume_hand=False):
                     if gt['player_id'] in self.players:
                         self.players[gt['player_id']].score += result['score'] // len(group_tiles)
                         # 보충
                         self.draw_tiles_for_player(gt['player_id'], 1)
 
+            # pending_tiles 정리 (Broadcasting 전에 수행해야 정확한 상태가 전달됨)
+            self.pending_tiles = [pt for pt in self.pending_tiles if (pt['x'], pt['y']) not in self.board]
+
             await self.broadcast_state()
             await self.broadcast({"type": "MODAL", "message": f"Word completed: {word}"})
-            
-            # pending_tiles 정리
-            self.pending_tiles = [pt for pt in self.pending_tiles if (pt['x'], pt['y']) not in self.board]
         
         else:
             # Invalid Word Penalty
