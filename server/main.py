@@ -5,6 +5,7 @@ from core.words import load_words_to_memory
 from api.routes import router as api_router
 from websocket.handlers import handle_websocket
 from core.database import init_db
+from core.game import RoomManager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,3 +26,5 @@ async def health_check():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await handle_websocket(websocket)
+
+# room_manager is managed in core/game.py
