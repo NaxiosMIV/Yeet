@@ -8,6 +8,7 @@ logger = get_logger(__name__)
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 WORDS_JSON_PATH = DATA_DIR / "words.json"
+KOREAN_WORDS_JSON_PATH = DATA_DIR / "korean_words.json"
 
 # Server
 HOST = os.getenv("HOST", "0.0.0.0")
