@@ -36,7 +36,7 @@ class GameRoom:
         self.room_code = room_code
         self.settings = {
             "mode": "classic",
-            "max_players": 10,
+            "max_players": 20,
             "lang": "en" # 'en' or 'ko'
         }
         self.time_remaining = 0
@@ -59,6 +59,8 @@ class GameRoom:
     def add_player(self, player: Player):
         logger.debug(f"Adding player {player.name} to room {self.room_code}")
         self.players[player.player_id] = player
+        if len(self.players) >= self.settings['max_players']:
+            logger.debug(f"Room {self.room_code} is full")
 
     def remove_player(self, player_id: str):
         logger.debug(f"Removing player {player_id} from room {self.room_code}")

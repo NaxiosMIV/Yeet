@@ -13,8 +13,12 @@ export const camera = {
 export const rackState = {
   tiles: Array(10).fill(null),
   draggingIndex: -1,
+  hoveredIndex: -1,
+  hoverOffsets: Array(10).fill(0), // Visual vertical offset for each tile
   dragX: 0,
   dragY: 0,
+  dragOffsetX: 0,
+  dragOffsetY: 0,
   lastTiles: Array(10).fill(null),
   arrivalAnimations: [], // Array of {index, startTime, duration}
   isHoveringDestroy: false,
@@ -58,6 +62,16 @@ function animationLoop() {
     rackState.arrivalAnimations = rackState.arrivalAnimations.filter(anim => now < anim.startTime + anim.duration);
   }
 
+  // Handle Hover Animation Interpolation
+  let needsMoreFrames = false;
+  rackState.hoverOffsets = rackState.hoverOffsets.map((offset, i) => {
+    const target = (i === rackState.hoveredIndex && rackState.draggingIndex === -1) ? -12 : 0;
+    const diff = target - offset;
+    if (Math.abs(diff) < 0.1) return target;
+    needsMoreFrames = true;
+    return offset + diff * 0.2; // Smooth damping
+  });
+
   // Always render if there are active animations
   if (window.lastKnownState) {
     renderCanvas(window.lastKnownState);
@@ -66,7 +80,7 @@ function animationLoop() {
   const hasRemoval = removalAnimations.length > 0;
   const hasArrival = rackState.arrivalAnimations && rackState.arrivalAnimations.length > 0;
 
-  if (hasRemoval || hasArrival) {
+  if (hasRemoval || hasArrival || needsMoreFrames) {
     requestAnimationFrame(animationLoop);
   } else {
     isLoopRunning = false;
@@ -114,127 +128,164 @@ export function renderCanvas(state) {
 
   ctx.fillStyle = userColor;
   ctx.globalAlpha = 0.2; // Keep it faint
-  ctx.fillRect(ghost.tileX * cellSize + 2, ghost.tileY * cellSize + 2, cellSize - 4, cellSize - 4);
+
+  ctx.beginPath();
+  // Using 4px padding and 6px radius to match confirmed tiles
+  ctx.roundRect(ghost.tileX * cellSize + 4, ghost.tileY * cellSize + 4, cellSize - 8, cellSize - 8, 6);
+  ctx.fill();
+
   ctx.globalAlpha = 1.0;
 
   ctx.restore();
 
   render_rack(ctx, rect, userColor);
-}function render_rack(ctx, rect, userColor) {
-    const tileCount = 10;
-    const tileSize = 60;
-    const gap = 12;
-    const totalWidth = (tileCount * tileSize) + ((tileCount - 1) * gap);
-    const startX = (rect.width - totalWidth) / 2;
-    const rackY = rect.height - 100;
+} function render_rack(ctx, rect, userColor) {
+  const tileCount = 10;
+  const tileSize = 60;
+  const gap = 12;
+  const totalWidth = (tileCount * tileSize) + ((tileCount - 1) * gap);
+  const startX = (rect.width - totalWidth) / 2;
+  const rackY = rect.height - 100;
 
-    // --- BUTTON POSITIONS ---
-    const buttonsX = startX + totalWidth + 50; // Offset to the right
-    const destroyY = rackY + 10;
-    const rerollY = rackY + 55;
+  // --- BUTTON POSITIONS ---
+  const buttonsX = startX + totalWidth + 50; // Offset to the right
+  const destroyY = rackY + 10;
+  const rerollY = rackY + 55;
 
-    // 1. Draw Extended Rack Background
-    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-    ctx.shadowColor = "rgba(0,0,0,0.1)";
-    ctx.shadowBlur = 20;
+  // 1. Draw Extended Rack Background
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+  ctx.shadowColor = "rgba(0,0,0,0.1)";
+  ctx.shadowBlur = 20;
+  ctx.beginPath();
+  // Width extended by 100px to house buttons
+  ctx.roundRect(startX - 20, rackY - 20, totalWidth + 110, tileSize + 40, 24);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // 2. Render Slots & Tiles
+  rackState.tiles.forEach((letter, i) => {
+    const x = startX + i * (tileSize + gap);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
     ctx.beginPath();
-    // Width extended by 100px to house buttons
-    ctx.roundRect(startX - 20, rackY - 20, totalWidth + 110, tileSize + 40, 24);
+    ctx.roundRect(x, rackY, tileSize, tileSize, 10);
     ctx.fill();
-    ctx.shadowBlur = 0;
 
-    // 2. Render Slots & Tiles
-    rackState.tiles.forEach((letter, i) => {
-        const x = startX + i * (tileSize + gap);
-        ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
-        ctx.beginPath();
-        ctx.roundRect(x, rackY, tileSize, tileSize, 10);
-        ctx.fill();
+    if (!letter || i === rackState.draggingIndex) return;
 
-        if (!letter || i === rackState.draggingIndex) return;
-        drawTile(ctx, x, rackY, tileSize, letter, false);
-    });
+    const yOffset = rackState.hoverOffsets[i] || 0;
 
-    // 3. Draw DESTROY Button (Trash)
-    ctx.save();
-    // Highlight red if dragging over it
-    ctx.fillStyle = rackState.isHoveringDestroy ? "#ef4444" : "#fee2e2";
+    // --- Appearance Animation ---
+    const anim = (rackState.arrivalAnimations || []).find(a => a.index === i);
+    let scale = 1;
+    if (anim) {
+      const elapsed = performance.now() - anim.startTime;
+      const progress = Math.min(elapsed / anim.duration, 1);
+
+      // Snappy Elastic ease out
+      const c4 = (2 * Math.PI) / 3;
+      scale = progress === 0 ? 0 : progress === 1 ? 1 :
+        Math.pow(2, -10 * progress) * Math.sin((progress * 10 - 0.75) * c4) + 1;
+
+    }
+
+    drawTile(ctx, x, rackY + yOffset, tileSize, letter, false, scale);
+  });
+
+  // 3. Draw DESTROY Button (Trash)
+  ctx.save();
+  // Highlight red if dragging over it
+  ctx.fillStyle = rackState.isHoveringDestroy ? "#ef4444" : "#fee2e2";
+  ctx.beginPath();
+  ctx.arc(buttonsX, destroyY, 18, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = rackState.isHoveringDestroy ? "#ffffff" : "#ef4444";
+  ctx.font = "18px 'Material Icons Round'";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("delete", buttonsX, destroyY);
+  ctx.restore();
+
+  // 4. Draw REROLL Button (Refresh)if (rackState.isRerollLocked)
+  if (rackState.isRerollLocked) {
+    ctx.fillStyle = "rgba(99, 102, 241, 0.3)"; // Indigo tint
     ctx.beginPath();
-    ctx.arc(buttonsX, destroyY, 18, 0, Math.PI * 2);
+    ctx.moveTo(buttonsX, rerollY);
+    // Draw the pie slice representing remaining time
+    ctx.arc(
+      buttonsX,
+      rerollY,
+      18,
+      -Math.PI / 2,
+      -Math.PI / 2 + (Math.PI * 2 * rackState.rerollCooldownPercent),
+      false
+    );
+    ctx.lineTo(buttonsX, rerollY);
     ctx.fill();
-    
-    ctx.fillStyle = rackState.isHoveringDestroy ? "#ffffff" : "#ef4444";
-    ctx.font = "18px 'Material Icons Round'";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("delete", buttonsX, destroyY);
-    ctx.restore();
+  }
 
-    // 4. Draw REROLL Button (Refresh)if (rackState.isRerollLocked)
-    if (rackState.isRerollLocked) {
-        ctx.fillStyle = "rgba(99, 102, 241, 0.3)"; // Indigo tint
-        ctx.beginPath();
-        ctx.moveTo(buttonsX, rerollY);
-        // Draw the pie slice representing remaining time
-        ctx.arc(
-            buttonsX, 
-            rerollY, 
-            18, 
-            -Math.PI / 2, 
-            -Math.PI / 2 + (Math.PI * 2 * rackState.rerollCooldownPercent), 
-            false
-        );
-        ctx.lineTo(buttonsX, rerollY);
-        ctx.fill();
-    }
+  // Icon
+  ctx.fillStyle = rackState.isRerollLocked ? "#94a3b8" : "#6366f1";
+  ctx.font = "18px 'Material Icons Round'";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("autorenew", buttonsX, rerollY);
+  ctx.restore();
 
-    // Icon
-    ctx.fillStyle = rackState.isRerollLocked ? "#94a3b8" : "#6366f1";
-    ctx.font = "18px 'Material Icons Round'";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("autorenew", buttonsX, rerollY);
-    ctx.restore();
-
-    // 5. Dragged Tile
-    if (rackState.draggingIndex !== -1) {
-        drawTile(ctx, rackState.dragX - tileSize / 2, rackState.dragY - tileSize / 2, tileSize, rackState.tiles[rackState.draggingIndex], true);
-    }
-} 
-
-function triggerRerollCooldown() {
-    rackState.isRerollLocked = true;
-    const startTime = performance.now();
-
-    function animate() {
-        const now = performance.now();
-        const elapsed = now - startTime;
-        const progress = elapsed / rackState.cooldownDuration;
-
-        if (progress < 1) {
-            // progress 0 (start) -> 1 (end)
-            // We want the overlay to disappear, so we track 1 down to 0
-            rackState.rerollCooldownPercent = 1 - progress;
-            renderCanvas(window.lastKnownState);
-            requestAnimationFrame(animate);
-        } else {
-            // Cooldown finished
-            rackState.isRerollLocked = false;
-            rackState.rerollCooldownPercent = 0;
-            renderCanvas(window.lastKnownState);
-        }
-    }
-    animate();
+  // 5. Dragged Tile
+  if (rackState.draggingIndex !== -1) {
+    drawTile(
+      ctx,
+      rackState.dragX - rackState.dragOffsetX,
+      rackState.dragY - rackState.dragOffsetY,
+      tileSize,
+      rackState.tiles[rackState.draggingIndex],
+      true,
+      1.1 // Slight pop scale while dragging
+    );
+  }
 }
 
-function drawTile(ctx, x, y, size, letter, isDragging) {
+function triggerRerollCooldown() {
+  rackState.isRerollLocked = true;
+  const startTime = performance.now();
+
+  function animate() {
+    const now = performance.now();
+    const elapsed = now - startTime;
+    const progress = elapsed / rackState.cooldownDuration;
+
+    if (progress < 1) {
+      // progress 0 (start) -> 1 (end)
+      // We want the overlay to disappear, so we track 1 down to 0
+      rackState.rerollCooldownPercent = 1 - progress;
+      renderCanvas(window.lastKnownState);
+      requestAnimationFrame(animate);
+    } else {
+      // Cooldown finished
+      rackState.isRerollLocked = false;
+      rackState.rerollCooldownPercent = 0;
+      renderCanvas(window.lastKnownState);
+    }
+  }
+  animate();
+}
+
+function drawTile(ctx, x, y, size, letter, isDragging, scale = 1) {
   const userColor = getComputedStyle(document.documentElement).getPropertyValue('--user-color') || '#4f46e5';
 
   ctx.save();
+
+  // Apply external scale and center point adjustment
+  if (scale !== 1) {
+    ctx.translate(x + size / 2, y + size / 2);
+    ctx.scale(scale, scale);
+    ctx.translate(-(x + size / 2), -(y + size / 2));
+  }
+
   if (isDragging) {
     ctx.shadowColor = "rgba(0,0,0,0.3)";
     ctx.shadowBlur = 15;
-    ctx.scale(1.1, 1.1); // Make it pop while dragging
   }
 
   ctx.fillStyle = userColor; // Use the passed userColor
@@ -410,58 +461,80 @@ export function screenToWorld(screenX, screenY, rect) {
 // ... (Mouse listeners remain the same)
 // Update mouse position for the ghost letter
 canvas.addEventListener('mousemove', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
 
-    // Update global camera mouse tracking for the "ghost" tile
-    camera.mouseX = mouseX;
-    camera.mouseY = mouseY;
+  // Update global camera mouse tracking for the "ghost" tile
+  camera.mouseX = mouseX;
+  camera.mouseY = mouseY;
 
-    // --- RECALCULATE RACK CONSTANTS ---
-    // (Must match render_rack to align hitboxes)
-    const tileCount = 10;
-    const tileSize = 60;
-    const gap = 12;
-    const totalWidth = (tileCount * tileSize) + ((tileCount - 1) * gap);
-    const startX = (rect.width - totalWidth) / 2;
-    const rackY = rect.height - 100;
-    const buttonsX = startX + totalWidth + 50;
-    const destroyY = rackY + 10;
-    const rerollY = rackY + 55;
+  // --- RECALCULATE RACK CONSTANTS ---
+  // (Must match render_rack to align hitboxes)
+  const tileCount = 10;
+  const tileSize = 60;
+  const gap = 12;
+  const totalWidth = (tileCount * tileSize) + ((tileCount - 1) * gap);
+  const startX = (rect.width - totalWidth) / 2;
+  const rackY = rect.height - 100;
+  const buttonsX = startX + totalWidth + 50;
+  const destroyY = rackY + 10;
+  const rerollY = rackY + 55;
 
-    if (isDraggingFromRack) {
-        rackState.dragX = mouseX;
-        rackState.dragY = mouseY;
+  if (isDraggingFromRack) {
+    rackState.dragX = mouseX;
+    rackState.dragY = mouseY;
 
-        // Check distance to Destroy button for hover effect
-        const distToDestroy = Math.hypot(mouseX - buttonsX, mouseY - destroyY);
-        rackState.isHoveringDestroy = distToDestroy < 25;
-        
-        // Change cursor while dragging over trash
-        canvas.style.cursor = rackState.isHoveringDestroy ? 'copy' : 'grabbing';
-    } 
-    else if (camera.isDragging) {
-        camera.wasDragging = true;
-        const factor = 40 / camera.zoom;
-        camera.x -= (e.clientX - camera.lastMouseX) * factor;
-        camera.y -= (e.clientY - camera.lastMouseY) * factor;
-        camera.lastMouseX = e.clientX;
-        camera.lastMouseY = e.clientY;
-        canvas.style.cursor = 'grabbing';
-    } 
-    else {
-        // Handle cursor for Reroll button hover
-        const distToReroll = Math.hypot(mouseX - buttonsX, mouseY - rerollY);
-        if (distToReroll < 20) {
-            canvas.style.cursor = 'pointer';
-        } else {
-            canvas.style.cursor = 'default';
-        }
+    // Check distance to Destroy button for hover effect
+    const distToDestroy = Math.hypot(mouseX - buttonsX, mouseY - destroyY);
+    rackState.isHoveringDestroy = distToDestroy < 25;
+
+    // Change cursor while dragging over trash
+    canvas.style.cursor = rackState.isHoveringDestroy ? 'copy' : 'grabbing';
+    rackState.hoveredIndex = -1; // No hover while dragging
+  }
+  else if (camera.isDragging) {
+    camera.wasDragging = true;
+    const factor = 40 / camera.zoom;
+    camera.x -= (e.clientX - camera.lastMouseX) * factor;
+    camera.y -= (e.clientY - camera.lastMouseY) * factor;
+    camera.lastMouseX = e.clientX;
+    camera.lastMouseY = e.clientY;
+    canvas.style.cursor = 'grabbing';
+    rackState.hoveredIndex = -1;
+  }
+  else {
+    // Handle Tile Hover detection
+    let foundHover = -1;
+    rackState.tiles.forEach((letter, i) => {
+      if (!letter) return;
+      const x = startX + i * (tileSize + gap);
+      if (mouseX >= x && mouseX <= x + tileSize && mouseY >= rackY - 20 && mouseY <= rackY + tileSize) {
+        foundHover = i;
+      }
+    });
+
+    const oldHover = rackState.hoveredIndex;
+    rackState.hoveredIndex = foundHover;
+
+    // If hover changed, ensure loop is running for animation
+    if (oldHover !== foundHover) {
+      ensureAnimationLoop();
     }
 
-    // Single render call to keep performance high
-    renderCanvas(window.lastKnownState || { board: [], players: {} });
+    // Handle cursor for Reroll button hover
+    const distToReroll = Math.hypot(mouseX - buttonsX, mouseY - rerollY);
+    if (foundHover !== -1) {
+      canvas.style.cursor = 'pointer';
+    } else if (distToReroll < 20) {
+      canvas.style.cursor = 'pointer';
+    } else {
+      canvas.style.cursor = 'default';
+    }
+  }
+
+  // Single render call to keep performance high
+  renderCanvas(window.lastKnownState || { board: [], players: {} });
 });
 canvas.addEventListener('mousedown', (e) => {
   const rect = canvas.getBoundingClientRect();
@@ -479,9 +552,16 @@ canvas.addEventListener('mousedown', (e) => {
   rackState.tiles.forEach((letter, i) => {
     if (!letter) return; // Can't drag empty slot
     const x = startX + i * (tileSize + gap);
-    if (mouseX >= x && mouseX <= x + tileSize && mouseY >= rackY && mouseY <= rackY + tileSize) {
+    // Include hover offset in hit detection if necessary, but usually just regular rackY is fine
+    const yWithOffset = rackY + (rackState.hoverOffsets[i] || 0);
+
+    if (mouseX >= x && mouseX <= x + tileSize && mouseY >= yWithOffset && mouseY <= yWithOffset + tileSize) {
       rackState.draggingIndex = i;
+      rackState.dragOffsetX = mouseX - x;
+      rackState.dragOffsetY = mouseY - yWithOffset;
       isDraggingFromRack = true;
+      rackState.dragX = mouseX;
+      rackState.dragY = mouseY;
     }
   });
 
@@ -495,77 +575,83 @@ canvas.addEventListener('mousedown', (e) => {
 });
 
 window.addEventListener('mouseup', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
 
-    // Rack & Button Calculation constants
-    const tileCount = 10;
-    const tileSize = 60;
-    const gap = 12;
-    const totalWidth = (tileCount * tileSize) + ((tileCount - 1) * gap);
-    const startX = (rect.width - totalWidth) / 2;
-    const rackY = rect.height - 100;
-    const buttonsX = startX + totalWidth + 50;
-    const destroyY = rackY + 10;
-    const rerollY = rackY + 55;
+  // Rack & Button Calculation constants
+  const tileCount = 10;
+  const tileSize = 60;
+  const gap = 12;
+  const totalWidth = (tileCount * tileSize) + ((tileCount - 1) * gap);
+  const startX = (rect.width - totalWidth) / 2;
+  const rackY = rect.height - 100;
+  const buttonsX = startX + totalWidth + 50;
+  const destroyY = rackY + 10;
+  const rerollY = rackY + 55;
 
-    if (isDraggingFromRack) {
-        // Check if dropped on Destroy button
-        const distToDestroy = Math.hypot(mouseX - buttonsX, mouseY - destroyY);
-        
-        if (distToDestroy < 25) {
-            // ACTION: DESTROY
-            if (globalWs?.readyState === WebSocket.OPEN) {
-                globalWs.send(JSON.stringify({
-                    type: "DESTROY_TILE",
-                    hand_index: rackState.draggingIndex
-                }));
-            }
-        } else {
-            // Check if dropped back on Rack (to cancel)
-            const isOverRack = mouseX >= startX - 20 && 
-                               mouseX <= startX + totalWidth + 20 && 
-                               mouseY >= rackY - 20;
+  if (isDraggingFromRack) {
+    // Check if dropped on Destroy button
+    const distToDestroy = Math.hypot(mouseX - buttonsX, mouseY - destroyY);
 
-            if (!isOverRack) {
-                // ACTION: PLACE ON BOARD
-                const worldPos = screenToWorld(mouseX, mouseY, rect);
-                const letter = rackState.tiles[rackState.draggingIndex];
+    if (distToDestroy < 25) {
+      // ACTION: DESTROY
+      if (globalWs?.readyState === WebSocket.OPEN) {
+        globalWs.send(JSON.stringify({
+          type: "DESTROY_TILE",
+          hand_index: rackState.draggingIndex
+        }));
+      }
 
-                if (globalWs?.readyState === WebSocket.OPEN) {
-                    globalWs.send(JSON.stringify({
-                        type: "PLACE",
-                        x: worldPos.tileX,
-                        y: worldPos.tileY,
-                        letter: letter.toUpperCase(),
-                        color: getComputedStyle(document.documentElement).getPropertyValue('--user-color') || '#4f46e5',
-                        hand_index: rackState.draggingIndex
-                    }));
-                }
-            }
-        }
+      // --- OPTIMISTIC UI: Remove tile immediately to prevent flicker ---
+      rackState.tiles[rackState.draggingIndex] = null;
     } else {
-        // ACTION: REROLL CLICK (Check if clicking reroll when NOT dragging)
-        const distToReroll = Math.hypot(mouseX - buttonsX, mouseY - rerollY);
-      if (distToReroll < 20) {
-        if (!rackState.isRerollLocked) {
-            if (globalWs?.readyState === WebSocket.OPEN) {
-                globalWs.send(JSON.stringify({ type: "REROLL_HAND" }));
+      // Check if dropped back on Rack (to cancel)
+      const isOverRack = mouseX >= startX - 20 &&
+        mouseX <= startX + totalWidth + 20 &&
+        mouseY >= rackY - 20;
 
-              triggerRerollCooldown();
-            }
-          }
-            
+      if (!isOverRack) {
+        // ACTION: PLACE ON BOARD
+        const worldPos = screenToWorld(mouseX, mouseY, rect);
+        const letter = rackState.tiles[rackState.draggingIndex];
+
+        if (globalWs?.readyState === WebSocket.OPEN) {
+          globalWs.send(JSON.stringify({
+            type: "PLACE",
+            x: worldPos.tileX,
+            y: worldPos.tileY,
+            letter: letter.toUpperCase(),
+            color: getComputedStyle(document.documentElement).getPropertyValue('--user-color') || '#4f46e5',
+            hand_index: rackState.draggingIndex
+          }));
         }
-    }
 
-    // Reset State
-    rackState.draggingIndex = -1;
-    isDraggingFromRack = false;
-    rackState.isHoveringDestroy = false;
-    renderCanvas(window.lastKnownState);
-    camera.isDragging = false;
+        // --- OPTIMISTIC UI: Remove tile immediately to prevent flicker ---
+        rackState.tiles[rackState.draggingIndex] = null;
+      }
+    }
+  } else {
+    // ACTION: REROLL CLICK (Check if clicking reroll when NOT dragging)
+    const distToReroll = Math.hypot(mouseX - buttonsX, mouseY - rerollY);
+    if (distToReroll < 20) {
+      if (!rackState.isRerollLocked) {
+        if (globalWs?.readyState === WebSocket.OPEN) {
+          globalWs.send(JSON.stringify({ type: "REROLL_HAND" }));
+
+          triggerRerollCooldown();
+        }
+      }
+
+    }
+  }
+
+  // Reset State
+  rackState.draggingIndex = -1;
+  isDraggingFromRack = false;
+  rackState.isHoveringDestroy = false;
+  renderCanvas(window.lastKnownState);
+  camera.isDragging = false;
 });
 
 canvas.addEventListener('wheel', (e) => {

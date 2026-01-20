@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Server is starting up...")
     logger.debug("Initializing database and loading words...")
-    await init_db() 
+    await init_db()
     await load_words_to_memory()
     logger.info("Database and words loaded.")
     yield
