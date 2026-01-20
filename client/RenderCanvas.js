@@ -16,7 +16,8 @@ export const rackState = {
   dragX: 0,
   dragY: 0,
   lastTiles: Array(10).fill(null),
-  arrivalAnimations: [] // Array of {index, startTime, duration}
+  arrivalAnimations: [], // Array of {index, startTime, duration}
+  isHoveringDestroy: false
 };
 
 let removalAnimations = [];
@@ -118,72 +119,75 @@ export function renderCanvas(state) {
   ctx.restore();
 
   render_rack(ctx, rect, userColor);
-}
+}function render_rack(ctx, rect, userColor) {
+    const tileCount = 10;
+    const tileSize = 60;
+    const gap = 12;
+    const totalWidth = (tileCount * tileSize) + ((tileCount - 1) * gap);
+    const startX = (rect.width - totalWidth) / 2;
+    const rackY = rect.height - 100;
 
-function render_rack(ctx, rect, userColor) {
-  const tileCount = 10; // Fixed 10 slots
-  const tileSize = 60;
-  const gap = 12;
-  const totalWidth = (tileCount * tileSize) + ((tileCount - 1) * gap);
-  const startX = (rect.width - totalWidth) / 2;
-  const rackY = rect.height - 100;
+    // --- BUTTON POSITIONS ---
+    const buttonsX = startX + totalWidth + 50; // Offset to the right
+    const destroyY = rackY + 10;
+    const rerollY = rackY + 55;
 
-  // Draw Rack Background Container
-  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-  ctx.shadowColor = "rgba(0,0,0,0.1)";
-  ctx.shadowBlur = 20;
-  ctx.beginPath();
-  ctx.roundRect(startX - 20, rackY - 20, totalWidth + 40, tileSize + 40, 24);
-  ctx.fill();
-  ctx.shadowBlur = 0;
-
-  rackState.tiles.forEach((letter, i) => {
-    const x = startX + i * (tileSize + gap);
-
-    // Draw slot background (empty slot)
-    ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+    // 1. Draw Extended Rack Background
+    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.shadowColor = "rgba(0,0,0,0.1)";
+    ctx.shadowBlur = 20;
     ctx.beginPath();
-    ctx.roundRect(x, rackY, tileSize, tileSize, 10);
+    // Width extended by 100px to house buttons
+    ctx.roundRect(startX - 20, rackY - 20, totalWidth + 110, tileSize + 40, 24);
     ctx.fill();
+    ctx.shadowBlur = 0;
 
-    if (!letter || i === rackState.draggingIndex) return;
+    // 2. Render Slots & Tiles
+    rackState.tiles.forEach((letter, i) => {
+        const x = startX + i * (tileSize + gap);
+        ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+        ctx.beginPath();
+        ctx.roundRect(x, rackY, tileSize, tileSize, 10);
+        ctx.fill();
 
-    // Arrival animation logic
-    const anim = (rackState.arrivalAnimations || []).find(a => a.index === i);
-    let scale = 1;
-    let opacity = 1;
+        if (!letter || i === rackState.draggingIndex) return;
+        drawTile(ctx, x, rackY, tileSize, letter, false);
+    });
 
-    if (anim) {
-      const elapsed = performance.now() - anim.startTime;
-      const progress = Math.min(elapsed / anim.duration, 1);
-
-      // Stronger "Pop" Effect (Overshoot)
-      // progress 0-1 matches scale 0-1.2-1.0
-      if (progress < 0.7) {
-        scale = (progress / 0.7) * 1.2;
-      } else {
-        scale = 1.2 - ((progress - 0.7) / 0.3) * 0.2;
-      }
-      opacity = progress;
-    }
-
+    // 3. Draw DESTROY Button (Trash)
     ctx.save();
-    if (anim) {
-      ctx.translate(x + tileSize / 2, rackY + tileSize / 2);
-      ctx.scale(scale, scale);
-      ctx.globalAlpha = opacity;
-      drawTile(ctx, -tileSize / 2, -tileSize / 2, tileSize, letter, false);
-    } else {
-      drawTile(ctx, x, rackY, tileSize, letter, false);
-    }
+    // Highlight red if dragging over it
+    ctx.fillStyle = rackState.isHoveringDestroy ? "#ef4444" : "#fee2e2";
+    ctx.beginPath();
+    ctx.arc(buttonsX, destroyY, 18, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = rackState.isHoveringDestroy ? "#ffffff" : "#ef4444";
+    ctx.font = "18px 'Material Icons Round'";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("delete", buttonsX, destroyY);
     ctx.restore();
-  });
 
-  // Draw the tile currently being dragged
-  if (rackState.draggingIndex !== -1) {
-    drawTile(ctx, rackState.dragX - tileSize / 2, rackState.dragY - tileSize / 2, tileSize, rackState.tiles[rackState.draggingIndex], true);
-  }
-}
+    // 4. Draw REROLL Button (Refresh)
+    ctx.save();
+    ctx.fillStyle = "#e0e7ff";
+    ctx.beginPath();
+    ctx.arc(buttonsX, rerollY, 18, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = "#6366f1";
+    ctx.font = "18px 'Material Icons Round'";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("autorenew", buttonsX, rerollY);
+    ctx.restore();
+
+    // 5. Dragged Tile
+    if (rackState.draggingIndex !== -1) {
+        drawTile(ctx, rackState.dragX - tileSize / 2, rackState.dragY - tileSize / 2, tileSize, rackState.tiles[rackState.draggingIndex], true);
+    }
+} 
 
 function drawTile(ctx, x, y, size, letter, isDragging) {
   const userColor = getComputedStyle(document.documentElement).getPropertyValue('--user-color') || '#4f46e5';
@@ -369,30 +373,59 @@ export function screenToWorld(screenX, screenY, rect) {
 // ... (Mouse listeners remain the same)
 // Update mouse position for the ghost letter
 canvas.addEventListener('mousemove', (e) => {
-  const rect = canvas.getBoundingClientRect();
-  camera.mouseX = e.clientX - rect.left;
-  camera.mouseY = e.clientY - rect.top;
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
 
-  const mouseX = e.clientX - rect.left;
-  const mouseY = e.clientY - rect.top;
-  if (isDraggingFromRack) {
-    rackState.dragX = mouseX;
-    rackState.dragY = mouseY;
-    renderCanvas(window.lastKnownState);
-  }
-  else if (camera.isDragging) {
-    camera.wasDragging = true;
-    const factor = 40 / camera.zoom;
-    camera.x -= (e.clientX - camera.lastMouseX) * factor;
-    camera.y -= (e.clientY - camera.lastMouseY) * factor;
-    camera.lastMouseX = e.clientX;
-    camera.lastMouseY = e.clientY;
-  }
+    // Update global camera mouse tracking for the "ghost" tile
+    camera.mouseX = mouseX;
+    camera.mouseY = mouseY;
 
-  // Re-render every time the mouse moves (to update drag or ghost letter)
-  renderCanvas(window.lastKnownState || { board: [] });
+    // --- RECALCULATE RACK CONSTANTS ---
+    // (Must match render_rack to align hitboxes)
+    const tileCount = 10;
+    const tileSize = 60;
+    const gap = 12;
+    const totalWidth = (tileCount * tileSize) + ((tileCount - 1) * gap);
+    const startX = (rect.width - totalWidth) / 2;
+    const rackY = rect.height - 100;
+    const buttonsX = startX + totalWidth + 50;
+    const destroyY = rackY + 10;
+    const rerollY = rackY + 55;
+
+    if (isDraggingFromRack) {
+        rackState.dragX = mouseX;
+        rackState.dragY = mouseY;
+
+        // Check distance to Destroy button for hover effect
+        const distToDestroy = Math.hypot(mouseX - buttonsX, mouseY - destroyY);
+        rackState.isHoveringDestroy = distToDestroy < 25;
+        
+        // Change cursor while dragging over trash
+        canvas.style.cursor = rackState.isHoveringDestroy ? 'copy' : 'grabbing';
+    } 
+    else if (camera.isDragging) {
+        camera.wasDragging = true;
+        const factor = 40 / camera.zoom;
+        camera.x -= (e.clientX - camera.lastMouseX) * factor;
+        camera.y -= (e.clientY - camera.lastMouseY) * factor;
+        camera.lastMouseX = e.clientX;
+        camera.lastMouseY = e.clientY;
+        canvas.style.cursor = 'grabbing';
+    } 
+    else {
+        // Handle cursor for Reroll button hover
+        const distToReroll = Math.hypot(mouseX - buttonsX, mouseY - rerollY);
+        if (distToReroll < 20) {
+            canvas.style.cursor = 'pointer';
+        } else {
+            canvas.style.cursor = 'default';
+        }
+    }
+
+    // Single render call to keep performance high
+    renderCanvas(window.lastKnownState || { board: [], players: {} });
 });
-
 canvas.addEventListener('mousedown', (e) => {
   const rect = canvas.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
@@ -425,33 +458,72 @@ canvas.addEventListener('mousedown', (e) => {
 });
 
 window.addEventListener('mouseup', (e) => {
-  if (isDraggingFromRack) {
     const rect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Convert release point to world coordinates
-    const worldPos = screenToWorld(mouseX, mouseY, rect);
-    const letter = rackState.tiles[rackState.draggingIndex];
+    // Rack & Button Calculation constants
+    const tileCount = 10;
+    const tileSize = 60;
+    const gap = 12;
+    const totalWidth = (tileCount * tileSize) + ((tileCount - 1) * gap);
+    const startX = (rect.width - totalWidth) / 2;
+    const rackY = rect.height - 100;
+    const buttonsX = startX + totalWidth + 50;
+    const destroyY = rackY + 10;
+    const rerollY = rackY + 55;
 
-    // Send to Server
-    if (globalWs?.readyState === WebSocket.OPEN) {
-      globalWs.send(JSON.stringify({
-        type: "PLACE",
-        x: worldPos.tileX,
-        y: worldPos.tileY,
-        letter: letter.toUpperCase(),
-        color: getComputedStyle(document.documentElement).getPropertyValue('--user-color') || '#4f46e5',
-        hand_index: rackState.draggingIndex
-      }));
+    if (isDraggingFromRack) {
+        // Check if dropped on Destroy button
+        const distToDestroy = Math.hypot(mouseX - buttonsX, mouseY - destroyY);
+        
+        if (distToDestroy < 25) {
+            // ACTION: DESTROY
+            if (globalWs?.readyState === WebSocket.OPEN) {
+                globalWs.send(JSON.stringify({
+                    type: "DESTROY_TILE",
+                    hand_index: rackState.draggingIndex
+                }));
+            }
+        } else {
+            // Check if dropped back on Rack (to cancel)
+            const isOverRack = mouseX >= startX - 20 && 
+                               mouseX <= startX + totalWidth + 20 && 
+                               mouseY >= rackY - 20;
+
+            if (!isOverRack) {
+                // ACTION: PLACE ON BOARD
+                const worldPos = screenToWorld(mouseX, mouseY, rect);
+                const letter = rackState.tiles[rackState.draggingIndex];
+
+                if (globalWs?.readyState === WebSocket.OPEN) {
+                    globalWs.send(JSON.stringify({
+                        type: "PLACE",
+                        x: worldPos.tileX,
+                        y: worldPos.tileY,
+                        letter: letter.toUpperCase(),
+                        color: getComputedStyle(document.documentElement).getPropertyValue('--user-color') || '#4f46e5',
+                        hand_index: rackState.draggingIndex
+                    }));
+                }
+            }
+        }
+    } else {
+        // ACTION: REROLL CLICK (Check if clicking reroll when NOT dragging)
+        const distToReroll = Math.hypot(mouseX - buttonsX, mouseY - rerollY);
+        if (distToReroll < 20) {
+            if (globalWs?.readyState === WebSocket.OPEN) {
+                globalWs.send(JSON.stringify({ type: "REROLL_HAND" }));
+            }
+        }
     }
 
-    // Reset state
+    // Reset State
     rackState.draggingIndex = -1;
     isDraggingFromRack = false;
+    rackState.isHoveringDestroy = false;
     renderCanvas(window.lastKnownState);
-  }
-  camera.isDragging = false;
+    camera.isDragging = false;
 });
 
 canvas.addEventListener('wheel', (e) => {

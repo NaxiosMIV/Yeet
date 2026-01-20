@@ -21,7 +21,7 @@ async def load_words_to_memory():
         # Initialize caches
         word_cache = {}
         words_by_length = {}
-
+        
         for row in rows:
             word = row['word']
             lang = row['lang']
