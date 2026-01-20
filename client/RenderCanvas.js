@@ -17,7 +17,8 @@ export const rackState = {
   dragY: 0,
   lastTiles: Array(10).fill(null),
   arrivalAnimations: [], // Array of {index, startTime, duration}
-  isHoveringDestroy: false
+  isHoveringDestroy: false,
+  cooldownDuration: 3000
 };
 
 let removalAnimations = [];
@@ -169,14 +170,26 @@ export function renderCanvas(state) {
     ctx.fillText("delete", buttonsX, destroyY);
     ctx.restore();
 
-    // 4. Draw REROLL Button (Refresh)
-    ctx.save();
-    ctx.fillStyle = "#e0e7ff";
-    ctx.beginPath();
-    ctx.arc(buttonsX, rerollY, 18, 0, Math.PI * 2);
-    ctx.fill();
-    
-    ctx.fillStyle = "#6366f1";
+    // 4. Draw REROLL Button (Refresh)if (rackState.isRerollLocked)
+    if (rackState.isRerollLocked) {
+        ctx.fillStyle = "rgba(99, 102, 241, 0.3)"; // Indigo tint
+        ctx.beginPath();
+        ctx.moveTo(buttonsX, rerollY);
+        // Draw the pie slice representing remaining time
+        ctx.arc(
+            buttonsX, 
+            rerollY, 
+            18, 
+            -Math.PI / 2, 
+            -Math.PI / 2 + (Math.PI * 2 * rackState.rerollCooldownPercent), 
+            false
+        );
+        ctx.lineTo(buttonsX, rerollY);
+        ctx.fill();
+    }
+
+    // Icon
+    ctx.fillStyle = rackState.isRerollLocked ? "#94a3b8" : "#6366f1";
     ctx.font = "18px 'Material Icons Round'";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -188,6 +201,31 @@ export function renderCanvas(state) {
         drawTile(ctx, rackState.dragX - tileSize / 2, rackState.dragY - tileSize / 2, tileSize, rackState.tiles[rackState.draggingIndex], true);
     }
 } 
+
+function triggerRerollCooldown() {
+    rackState.isRerollLocked = true;
+    const startTime = performance.now();
+
+    function animate() {
+        const now = performance.now();
+        const elapsed = now - startTime;
+        const progress = elapsed / rackState.cooldownDuration;
+
+        if (progress < 1) {
+            // progress 0 (start) -> 1 (end)
+            // We want the overlay to disappear, so we track 1 down to 0
+            rackState.rerollCooldownPercent = 1 - progress;
+            renderCanvas(window.lastKnownState);
+            requestAnimationFrame(animate);
+        } else {
+            // Cooldown finished
+            rackState.isRerollLocked = false;
+            rackState.rerollCooldownPercent = 0;
+            renderCanvas(window.lastKnownState);
+        }
+    }
+    animate();
+}
 
 function drawTile(ctx, x, y, size, letter, isDragging) {
   const userColor = getComputedStyle(document.documentElement).getPropertyValue('--user-color') || '#4f46e5';
@@ -311,7 +349,6 @@ export function render_pending(ctx, state, startX, endX, startY, endY, cellSize)
 
       ctx.globalAlpha = 1.0;
       ctx.fillStyle = "white";
-      ctx.fillText(cell.letter.toUpperCase(), cx, cy);
       ctx.restore();
     }
   });
@@ -511,10 +548,15 @@ window.addEventListener('mouseup', (e) => {
     } else {
         // ACTION: REROLL CLICK (Check if clicking reroll when NOT dragging)
         const distToReroll = Math.hypot(mouseX - buttonsX, mouseY - rerollY);
-        if (distToReroll < 20) {
+      if (distToReroll < 20) {
+        if (!rackState.isRerollLocked) {
             if (globalWs?.readyState === WebSocket.OPEN) {
                 globalWs.send(JSON.stringify({ type: "REROLL_HAND" }));
+
+              triggerRerollCooldown();
             }
+          }
+            
         }
     }
 
