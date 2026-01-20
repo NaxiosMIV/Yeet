@@ -108,20 +108,118 @@ class GameRoom:
         self.tile_bag = TileBag(lang=lang)
         logger.debug(f"Initialized TileBag for room {self.room_code} with lang={lang}")
         
-        # Give each player a random 6-10 letter word as starting tiles
+        # Place starting words on board based on player count
+        self._initialize_starting_words()
+        
+        # Give each player a 10-letter word as starting tiles
         for p_id, player in self.players.items():
-            player.hand = [None] * 10 # Reset and fix size
-            lang = self.settings.get("lang", "en")
-            word = get_random_word(min_length=6, max_length=10, lang=lang)
+            player.hand = [None] * 10  # Reset and fix size to 10
+            word = get_random_word(exact_length=10, lang=lang)
             if word:
-                letters = list(word.upper() if lang == 'en' else word)[:10] # Cap at 10
+                letters = list(word.upper() if lang == 'en' else word)
                 for i, letter in enumerate(letters):
                     player.hand[i] = letter
-                logger.debug(f"Player {player.name} starting with word tiles: {word}")
+                logger.debug(f"Player {player.name} starting with 10-letter word: {word}")
             else:
-                # Fallback if no word found
-                logger.warning(f"No 6-10 letter word found for player {player.name}, falling back to random tiles.")
-                self.draw_tiles_for_player(p_id, 8)
+                # Fallback: try shorter words and fill rest with random
+                fallback_word = get_random_word(min_length=6, max_length=10, lang=lang)
+                if fallback_word:
+                    letters = list(fallback_word.upper() if lang == 'en' else fallback_word)
+                    for i, letter in enumerate(letters):
+                        player.hand[i] = letter
+                    # Fill remaining slots with random tiles
+                    remaining = 10 - len(letters)
+                    if remaining > 0:
+                        self.draw_tiles_for_player(p_id, remaining)
+                    logger.warning(f"No 10-letter word found, using {len(letters)}-letter word for {player.name}")
+                else:
+                    logger.warning(f"No word found for player {player.name}, falling back to random tiles")
+                    self.draw_tiles_for_player(p_id, 10)
+    
+    def _get_starting_word_count(self) -> int:
+        """Calculate number of starting words based on player count."""
+        player_count = len(self.players)
+        # 1-5: 1 word, 6-10: 2 words, 11-15: 3 words, 16+: 4 words
+        return min(4, 1 + (player_count - 1) // 5)
+    
+    def _initialize_starting_words(self):
+        """
+        Place starting words on the board in a "/" zigzag pattern.
+        
+        Pattern:
+        - Word 1: Horizontal at center
+        - Word 2: Vertical, connected to Word 1's end
+        - Word 3: Horizontal, connected to Word 2's end
+        - Word 4: Vertical, connected to Word 3's end
+        
+        This creates a "/" shape, not ㄷ or ㅁ (closed shapes).
+        """
+        lang = self.settings.get("lang", "en")
+        word_count = self._get_starting_word_count()
+        logger.info(f"Placing {word_count} starting word(s) for {len(self.players)} players")
+        
+        # Board center (assuming infinite board, start at 0,0 area)
+        center_x, center_y = 0, 0
+        default_color = "#94a3b8"  # Neutral gray for starting tiles
+        
+        words_placed = []
+        current_x, current_y = center_x, center_y
+        
+        for i in range(word_count):
+            # Get a 10+ letter word
+            word = get_random_word(min_length=10, lang=lang)
+            if not word:
+                word = get_random_word(min_length=8, lang=lang)  # Fallback
+            if not word:
+                logger.warning(f"Could not find starting word {i+1}")
+                continue
+            
+            letters = list(word.upper() if lang == 'en' else word)
+            is_horizontal = (i % 2 == 0)  # Alternate: H, V, H, V
+            
+            if i == 0:
+                # First word: place horizontally at center
+                for j, letter in enumerate(letters):
+                    pos_x = current_x + j
+                    pos_y = current_y
+                    self.board[(pos_x, pos_y)] = {
+                        'x': pos_x, 'y': pos_y, 
+                        'letter': letter, 'color': default_color
+                    }
+                # Next word connects at end of this word
+                current_x = current_x + len(letters) - 1
+                current_y = current_y
+                
+            elif is_horizontal:
+                # Horizontal word, connecting from previous vertical word's end
+                # Starts at the connection point, extends right
+                for j, letter in enumerate(letters):
+                    pos_x = current_x + j
+                    pos_y = current_y
+                    if (pos_x, pos_y) not in self.board:  # Don't overwrite connection
+                        self.board[(pos_x, pos_y)] = {
+                            'x': pos_x, 'y': pos_y, 
+                            'letter': letter, 'color': default_color
+                        }
+                current_x = current_x + len(letters) - 1
+                
+            else:
+                # Vertical word, connecting from previous horizontal word's end
+                # Starts at the connection point, extends downward (positive y)
+                for j, letter in enumerate(letters):
+                    pos_x = current_x
+                    pos_y = current_y + j
+                    if (pos_x, pos_y) not in self.board:  # Don't overwrite connection
+                        self.board[(pos_x, pos_y)] = {
+                            'x': pos_x, 'y': pos_y, 
+                            'letter': letter, 'color': default_color
+                        }
+                current_y = current_y + len(letters) - 1
+            
+            words_placed.append(word)
+            logger.debug(f"Placed starting word {i+1}: '{word}' ({'H' if is_horizontal else 'V'})")
+        
+        logger.info(f"Placed {len(words_placed)} starting words: {words_placed}")
     
     def get_state(self):
         remaining_time = 0
@@ -343,7 +441,7 @@ class GameRoom:
             # If prefix is invalid, immediately explode the tile (same animation as finalize failure)
             if prefix_invalid:
                 # Apply penalty
-                penalty_points = 10
+                penalty_points = 5
                 player.score = max(0, player.score - penalty_points)
                 logger.info(f"Invalid prefix penalty applied to {player.name}: -{penalty_points}")
                 
@@ -546,15 +644,22 @@ class GameRoom:
             # Track players who placed tiles for tile replenishment
             players_to_replenish = {}
             
+            # Calculate score based on word length: n^1.5
+            word_length = len(word_coords)
+            word_score = int(word_length ** 1.5)
+            logger.debug(f"Word '{word}' length={word_length}, score={word_score}")
+            
             for gt in group_tiles:
                 # 중복 방지: 이미 보드에 있는 타일인지 확인
                 if (gt['x'], gt['y']) in self.board:
                     continue
 
                 # IMPORTANT: consume_hand=False because it was already consumed in handle_place_tile
-                if self.place_tile(gt['x'], gt['y'], gt['letter'], gt['player_id'], 10, new_color, consume_hand=False):
+                # Points=0 because score is calculated separately based on word length
+                if self.place_tile(gt['x'], gt['y'], gt['letter'], gt['player_id'], 0, new_color, consume_hand=False):
                     if gt['player_id'] in self.players:
-                        self.players[gt['player_id']].score += result['score'] // len(group_tiles)
+                        # Distribute word score among players who placed tiles
+                        self.players[gt['player_id']].score += word_score // len(group_tiles)
                         # Track player for tile replenishment (count tiles placed)
                         players_to_replenish[gt['player_id']] = players_to_replenish.get(gt['player_id'], 0) + 1
             
@@ -570,7 +675,7 @@ class GameRoom:
         
         else:
             # Invalid Word Penalty
-            penalty_points = 10
+            penalty_points = 5
             penalized_players = set()
             for gt in group_tiles:
                 pid = gt['player_id']
