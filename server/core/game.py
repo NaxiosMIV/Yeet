@@ -34,6 +34,12 @@ class Player:
 class GameRoom:
     def __init__(self, room_code):
         self.room_code = room_code
+        
+        self.DURATION_MAP = {
+            "classic": 300, # 5 min
+            "blitz": 180,   # 3 min
+            "bullet": 60    # 1 min
+        }
         self.settings = {
             "mode": "classic",
             "max_players": 10,
@@ -55,6 +61,11 @@ class GameRoom:
         self.lock = asyncio.Lock()
         self.tile_bag: Optional[TileBag] = None  # Initialized on game start
 
+    def update_settings(self, settings: dict):
+        if "mode" in settings:
+            self.mode = settings["mode"]
+            self.time_remaining = self.DURATION_MAP.get(self.mode, 300)
+            logger.info(f"Room {self.room_code} mode changed to {self.mode}")
 
     def add_player(self, player: Player):
         logger.debug(f"Adding player {player.name} to room {self.room_code}")

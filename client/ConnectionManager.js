@@ -27,15 +27,6 @@ const elements = {
   lobbyStartBtn: document.getElementById("lobby-start-match-btn"),
   lobbyPlayerList: document.getElementById("lobby-player-list"),
   lobbyScreen: document.getElementById("lobby-screen"),
-  // Chat Elements
-  chatWidget: document.getElementById("chat-widget"),
-  chatToggle: document.getElementById("chat-toggle"),
-  chatContainer: document.getElementById("chat-container"),
-  chatClose: document.getElementById("close-chat"),
-  chatInput: document.getElementById("chat-input"),
-  chatSend: document.getElementById("chat-send"),
-  chatMessages: document.getElementById("chat-messages"),
-  chatIcon: document.getElementById("chat-icon"),
   playerNickNameDisplay: document.getElementById("header-user-name"),
 };
 
@@ -308,32 +299,6 @@ const setupUIEvents = () => {
   if (elements.logoutBtn) {
     elements.logoutBtn.onclick = handleLogout;
   }
-
-  // Chat Event Listeners
-  const toggleChat = () => {
-    const isExpanded = elements.chatContainer.classList.toggle("expanded");
-    elements.chatIcon.innerText = isExpanded ? "keyboard_arrow_down" : "chat";
-    if (isExpanded) {
-      elements.chatInput.focus();
-      elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
-    }
-  };
-
-  elements.chatToggle.onclick = toggleChat;
-  elements.chatClose.onclick = toggleChat;
-
-  const sendMessage = () => {
-    const msg = elements.chatInput.value.trim();
-    if (msg && globalWs?.readyState === WebSocket.OPEN) {
-      globalWs.send(JSON.stringify({ type: "CHAT", message: msg }));
-      elements.chatInput.value = "";
-    }
-  };
-
-  elements.chatSend.onclick = sendMessage;
-  elements.chatInput.onkeypress = (e) => {
-    if (e.key === "Enter") sendMessage();
-  };
 };
 
 const handleLogout = async () => {
@@ -476,11 +441,6 @@ function joinGame(room, name) {
       startStartGameCountdown(data.seconds);
     }
 
-    if (data.type === "CHAT") {
-      appendChatMessage(data.sender, data.message, data.senderId === window.myPlayerId);
-      return;
-    }
-
     if (data.type === "GAME_OVER") {
       handleGameOver(data);
       return;
@@ -603,37 +563,6 @@ function handleGameOver(data) {
     }, 1000);
 }
 
-function appendChatMessage(sender, message, isMine) {
-  const msgWrapper = document.createElement("div");
-  msgWrapper.className = "flex flex-col";
-  msgWrapper.style.alignItems = isMine ? "flex-end" : "flex-start";
-
-  if (!isMine) {
-    const senderDiv = document.createElement("div");
-    senderDiv.className = "chat-sender";
-    senderDiv.innerText = sender;
-    msgWrapper.appendChild(senderDiv);
-  }
-
-  const msgDiv = document.createElement("div");
-  msgDiv.className = `chat-message ${isMine ? "mine" : "other"}`;
-  msgDiv.innerText = message;
-
-  msgWrapper.appendChild(msgDiv);
-  elements.chatMessages.appendChild(msgWrapper);
-  elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
-
-  // Visual feedback if chat is collapsed
-  if (!elements.chatContainer.classList.contains("expanded")) {
-    elements.chatToggle.classList.add("bg-red-500");
-    elements.chatToggle.classList.remove("bg-indigo-500");
-    setTimeout(() => {
-      elements.chatToggle.classList.remove("bg-red-500");
-      elements.chatToggle.classList.add("bg-indigo-500");
-    }, 1000);
-  }
-}
-
 
 function startStartGameCountdown(seconds, callback) {
     const overlay = document.getElementById('start-countdown-overlay');
@@ -661,7 +590,7 @@ function startStartGameCountdown(seconds, callback) {
             triggerWobble(count);
         } else {
             clearInterval(interval);
-            triggerWobble("GO!");
+            triggerWobble("Yeet!");
             
             // Wait for "GO!" to be seen, then fade out
             setTimeout(() => {
@@ -702,5 +631,21 @@ function updateInGameTimer(secondsRemaining) {
         container.classList.remove('animate-bounce');
     }
 }
+
+const modeSelect = document.getElementById('lobby-settings-mode');
+
+modeSelect.addEventListener('change', (e) => {
+    const selectedMode = e.target.value;
+    
+    // Only send if we are the host
+    if (globalWs && globalWs.readyState === WebSocket.OPEN) {
+        globalWs.send(JSON.stringify({
+            type: "UPDATE_SETTINGS",
+            settings: {
+                mode: selectedMode
+            }
+        }));
+    }
+});
 
 init();
