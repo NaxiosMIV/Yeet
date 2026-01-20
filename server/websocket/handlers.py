@@ -103,6 +103,16 @@ async def handle_websocket(ws: WebSocket):
                         "senderId": user_uuid,
                         "message": message
                     })
+            elif data["type"] == "REROLL_HAND":
+                room.reroll_hand(user_uuid)
+                await room.broadcast_state()
+                
+            elif data["type"] == "DESTROY_TILE":
+                hand_index = data.get("hand_index")
+                if hand_index is not None:
+                    room.destroy_tile(user_uuid, hand_index)
+                    # Always broadcast state so the rack updates visually
+                    await room.broadcast_state()
 
             elif data["type"] == "END_GAME":
                 game_id = await room.handle_end_game()

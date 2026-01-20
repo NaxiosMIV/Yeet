@@ -91,7 +91,55 @@ class GameRoom:
                 
         logger.debug(f"Player {player.name} drew {len(drawn)} tiles: {drawn}")
         return drawn
+    
+    def destroy_tile(self, player_id: str, hand_index: int):
+        if player_id not in self.players:
+            return
+        
+        player = self.players[player_id]
+        
+        # Validate index
+        if 0 <= hand_index < len(player.hand):
+            tile_to_destroy = player.hand[hand_index]
+            
+            if tile_to_destroy:
+                # 1. Remove the tile
+                player.hand[hand_index] = None
+                
+                # 2. Optional: Put it back in the bag or just delete it
+                # if self.tile_bag: self.tile_bag.tiles.append(tile_to_destroy)
+                
+                # 3. Draw exactly 1 new tile to replace it
+                self.draw_tiles_for_player(player_id, 1)
+                
+                logger.debug(f"Player {player.name} destroyed tile at index {hand_index}")
 
+    def reroll_hand(self, player_id: str):
+        if player_id not in self.players:
+            return
+        
+        player = self.players[player_id]
+        
+        # 1. Identify valid tiles to return
+        current_tiles = [t for t in player.hand if t is not None]
+        if not current_tiles:
+            return # Nothing to reroll
+
+        # 2. Return tiles to bag and SHUFFLE
+        if self.tile_bag:
+            # Assuming your tile_bag has a list called 'tiles'
+            self.tile_bag.tiles.extend(current_tiles)
+            self.tile_bag.shuffle() # Crucial: don't give them the same tiles back!
+
+        # 3. Reset the hand array 
+        player.hand = [None] * 10
+        
+        # 4. Draw new tiles (draw_tiles_for_player usually fills the first N None slots)
+        self.draw_tiles_for_player(player_id, 10)
+        
+        logger.info(f"Player {player.name} ({player_id}) rerolled their hand.")
+
+    
     def start_global_timer(self, duration: int):
         """Starts the main game clock."""
         if self.timer_task:
