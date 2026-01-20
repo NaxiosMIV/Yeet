@@ -18,6 +18,20 @@
         animation: wobble-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
       }
     }
+    /* Default body state */
+    body {
+        cursor: url('/static/hand_small_open.png') 32 32, auto;
+    }
+
+    /* Clicking buttons or links */
+    button, a, select, #chat-toggle {
+        cursor: url('/static/hand_small_point.png') 32 32, pointer;
+    }
+
+    /* While holding a click on any button */
+    button:active, a:active {
+        cursor: url('/static/hand_small_close.png') 32 32, grabbing;
+    }
 
     @keyframes wobble-pop {
       0% { transform: scale(0) rotate(-10deg); opacity: 0; }
@@ -248,8 +262,9 @@
 
           <select id="lobby-settings-mode"
             class="hidden w-full rounded-xl border-slate-200 text-sm font-bold bg-slate-50">
-            <option value="classic">Classic</option>
-            <option value="blitz">Blitz</option>
+            <option value="classic">Classic (5min)</option>
+            <option value="blitz">Blitz (3min)</option>
+            <option value="bullet">Bullet (1min)</option>
           </select>
 
           <div id="lobby-mode-text"
@@ -355,39 +370,6 @@
         </button>
       </div>
     </main>
-
-    <!-- Chat UI -->
-    <div id="chat-widget" class="fixed bottom-6 right-6 z-[90] flex flex-col items-end pointer-events-none">
-      <div id="chat-container"
-        class="w-80 h-96 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden mb-4 transition-all duration-300 origin-bottom-right scale-0 opacity-0 flex flex-col pointer-events-auto">
-        <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h3 class="font-bold text-slate-700 flex items-center gap-2">
-            <span class="material-icons-round text-indigo-500 text-sm">chat_bubble</span> Chat
-          </h3>
-          <button id="close-chat" class="p-1 hover:bg-slate-200 rounded-lg transition-all text-slate-400">
-            <span class="material-icons-round text-sm">close</span>
-          </button>
-        </div>
-        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
-          <!-- Messages will appear here -->
-        </div>
-        <div class="p-4 border-t border-slate-100 bg-white">
-          <div class="flex gap-2">
-            <input id="chat-input" type="text" placeholder="Type a message..."
-              class="flex-1 text-sm border-slate-200 rounded-xl px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none" />
-            <button id="chat-send"
-              class="bg-indigo-500 text-white p-2 rounded-xl hover:bg-indigo-600 transition-all shadow-md active:scale-95">
-              <span class="material-icons-round text-sm">send</span>
-            </button>
-          </div>
-        </div>
-      </div>
-      <button id="chat-toggle"
-        class="w-14 h-14 bg-indigo-500 text-white rounded-full shadow-lg hover:bg-indigo-600 transition-all flex items-center justify-center active:scale-90 pointer-events-auto">
-        <span id="chat-icon" class="material-icons-round text-2xl">chat</span>
-      </button>
-    </div>
-  </div>
 
   <div id="winner-overlay" class="hidden fixed inset-0 z-[300] flex items-center justify-center backdrop-blur-xl bg-white/30 transition-all duration-700 opacity-0">
     <div class="text-center p-12 bg-white rounded-[3rem] shadow-2xl border border-slate-200 scale-90 transition-transform duration-700" id="winner-card">

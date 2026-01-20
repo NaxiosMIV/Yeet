@@ -61,7 +61,7 @@ async def handle_websocket(ws: WebSocket):
                     await asyncio.sleep(countdown_seconds + 0.5)
                     room.start_match()
                     await room.broadcast({"type": "GAME_STARTED"})
-                    room.start_global_timer(300)
+                    room.start_global_timer(room.DURATION_MAP.get(room.settings["mode"], 300))
                     await room.broadcast_state()
                 else:
                     await ws.send_json({"type": "ERROR", "message": "Only the host can start."})
@@ -114,6 +114,14 @@ async def handle_websocket(ws: WebSocket):
                     # Always broadcast state so the rack updates visually
                     await room.broadcast_state()
 
+            if data["type"] == "UPDATE_SETTINGS":
+                room.update_settings(data["settings"])
+                # Broadcast new settings to all players in lobby
+                await room.broadcast({
+                    "type": "SETTINGS_UPDATED",
+                    "settings": data["settings"]
+                })
+                    
             elif data["type"] == "END_GAME":
                 game_id = await room.handle_end_game()
                 await room.broadcast({"type": "GAME_OVER", "game_id": game_id, "state": room.get_state()})

@@ -489,9 +489,6 @@ canvas.addEventListener('mousemove', (e) => {
     const distToDestroy = Math.hypot(mouseX - buttonsX, mouseY - destroyY);
     rackState.isHoveringDestroy = distToDestroy < 25;
 
-    // Change cursor while dragging over trash
-    canvas.style.cursor = rackState.isHoveringDestroy ? 'copy' : 'grabbing';
-    rackState.hoveredIndex = -1; // No hover while dragging
   }
   else if (camera.isDragging) {
     camera.wasDragging = true;
@@ -500,37 +497,6 @@ canvas.addEventListener('mousemove', (e) => {
     camera.y -= (e.clientY - camera.lastMouseY) * factor;
     camera.lastMouseX = e.clientX;
     camera.lastMouseY = e.clientY;
-    canvas.style.cursor = 'grabbing';
-    rackState.hoveredIndex = -1;
-  }
-  else {
-    // Handle Tile Hover detection
-    let foundHover = -1;
-    rackState.tiles.forEach((letter, i) => {
-      if (!letter) return;
-      const x = startX + i * (tileSize + gap);
-      if (mouseX >= x && mouseX <= x + tileSize && mouseY >= rackY - 20 && mouseY <= rackY + tileSize) {
-        foundHover = i;
-      }
-    });
-
-    const oldHover = rackState.hoveredIndex;
-    rackState.hoveredIndex = foundHover;
-
-    // If hover changed, ensure loop is running for animation
-    if (oldHover !== foundHover) {
-      ensureAnimationLoop();
-    }
-
-    // Handle cursor for Reroll button hover
-    const distToReroll = Math.hypot(mouseX - buttonsX, mouseY - rerollY);
-    if (foundHover !== -1) {
-      canvas.style.cursor = 'pointer';
-    } else if (distToReroll < 20) {
-      canvas.style.cursor = 'pointer';
-    } else {
-      canvas.style.cursor = 'default';
-    }
   }
 
   // Single render call to keep performance high
