@@ -53,8 +53,15 @@ async def handle_websocket(ws: WebSocket):
             
             if data["type"] == "START_GAME":
                 if is_host:
+                    countdown_seconds = 3
+                    await room.broadcast({
+                        "type": "GAME_START_COUNTDOWN", 
+                        "seconds": countdown_seconds
+                    })
+                    await asyncio.sleep(countdown_seconds + 0.5)
                     room.start_match()
                     await room.broadcast({"type": "GAME_STARTED"})
+                    room.start_global_timer(10)
                     await room.broadcast_state()
                 else:
                     await ws.send_json({"type": "ERROR", "message": "Only the host can start."})

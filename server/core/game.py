@@ -20,6 +20,7 @@ class Player:
         self.score = 0
         self.color = "#6366F1" # Default color
         self.hand: List[Optional[str]] = [None] * 10
+        
         logger.debug(f"Player created: {self.name} ({self.player_id})")
 
     def to_dict(self):
@@ -38,6 +39,10 @@ class GameRoom:
             "max_players": 10,
             "lang": "en" # 'en' or 'ko'
         }
+        self.time_remaining = 0
+        self.total_round_time = 0
+        self.timer_task = None
+
         self.board: Dict[tuple, Dict] = {} # (x, y) -> {'x': x, 'y': y, 'letter': letter, 'color': color}
         self.pending_tiles: List[Dict] = []
         self.players: Dict[str, Player] = {}
@@ -80,8 +85,51 @@ class GameRoom:
         logger.debug(f"Player {player.name} drew {len(drawn)} tiles: {drawn}")
         return drawn
 
+    def start_global_timer(self, duration: int):
+        """Starts the main game clock."""
+        if self.timer_task:
+            self.timer_task.cancel()
+        
+        self.time_remaining = duration
+        self.total_round_time = duration
+        
+        logger.debug(f"Timer tick: {self.time_remaining} seconds left in room {self.room_code}")
+        self.timer_task = asyncio.create_task(self._run_timer())
+
+    
+    async def _run_timer(self):
+        try:
+            while self.time_remaining > 0:
+                await asyncio.sleep(1)
+                self.time_remaining -= 1
+                
+                # Broadcast the new state to all players every second
+                await self.broadcast_timer(self.time_remaining)
+                
+                # Optional: Log every 10 seconds to avoid spamming console
+                if self.time_remaining % 10 == 0:
+                    logger.debug(f"Room {self.room_code} timer: {self.time_remaining}s left")
+
+            # When time hits zero
+            logger.info(f"Timer finished for room {self.room_code}")
+            await self.handle_end_game_from_timer()
+            
+        except asyncio.CancelledError:
+            logger.debug(f"Timer cancelled for room {self.room_code}")
+        except Exception as e:
+            logger.error(f"Error in timer loop: {e}")
+        
+    async def handle_end_game_from_timer(self):
+        game_id = await self.handle_end_game()
+        await self.broadcast({
+            "type": "GAME_OVER", 
+            "reason": "TIME_UP",
+            "game_id": game_id, 
+            "state": self.get_state()
+        })
+
     async def broadcast(self, message: dict):
-        logger.debug(f"Broadcasting message type {message.get('type')} to {len(self.players)} players in {self.room_code}")
+        # logger.debug(f"Broadcasting message type {message.get('type')} to {len(self.players)} players in {self.room_code}")
         # 플레이어들에게 메시지 비동기 전송
         tasks = [
             p.websocket.send_json(message) 
@@ -89,6 +137,10 @@ class GameRoom:
         ]
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+
+    
+    async def broadcast_timer(self, time):
+        await self.broadcast({"type": "TIMER", "time": time})
 
     async def broadcast_state(self):
         await self.broadcast({"type": "UPDATE", "state": self.get_state()})
@@ -581,34 +633,10 @@ class GameRoom:
         room_manager.remove_room(self.room_code)
         logger.info(f"Room {self.room_code} cleaned up and removed.")
 
-    def start_timer(self, duration: int):
-        """방 전체 타이머를 시작합니다."""
-        if self.room_timer_task:
-            self.room_timer_task.cancel()
-        
-        self.duration = duration
-        self.start_time = time.time()
-        self.room_timer_task = asyncio.create_task(self._run_timer(duration))
-        logger.info(f"Room timer started for {self.room_code}: {duration}s")
-
     def update_settings(self, settings: dict):
         """방 설정을 업데이트합니다."""
         self.settings.update(settings)
         logger.info(f"Room settings updated for {self.room_code}: {self.settings}")
-
-    async def _run_timer(self, duration: int):
-        try:
-            await asyncio.sleep(duration)
-            logger.info(f"Timer expired for room {self.room_code}. Finalizing game.")
-            game_id = await self.handle_end_game()
-            await self.broadcast({
-                "type": "GAME_OVER",
-                "game_id": game_id,
-                "state": self.get_state(),
-                "reason": "TIMER_EXPIRED"
-            })
-        except asyncio.CancelledError:
-            logger.debug(f"Room timer for {self.room_code} cancelled.")
 
 class RoomManager:
     def __init__(self):
