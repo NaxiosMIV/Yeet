@@ -74,6 +74,8 @@ async def handle_websocket(ws: WebSocket):
                 
                 if not success:
                     await ws.send_json({"type": "ERROR", "message": error_message})
+                    # Resync state to fix ghost tile issue
+                    await ws.send_json({"type": "UPDATE", "state": room.get_state()})
 
             elif data["type"] == "UPDATE_SETTINGS":
                 if is_host:

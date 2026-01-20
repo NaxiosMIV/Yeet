@@ -455,6 +455,19 @@ function joinGame(room, name) {
       return; // Don't process further - wait for UPDATE with correct state
     }
 
+    if (data.type === "WORD_COMPLETED") {
+      // Trigger celebration animation for completed word
+      import("./RenderCanvas.js").then(m => {
+        // Use golden/celebration colors for word completion
+        const celebrationTiles = data.tiles.map(tile => ({
+          ...tile,
+          color: "#fbbf24" // Golden yellow for celebration
+        }));
+        m.triggerWaveAnimation(celebrationTiles);
+      });
+      return;
+    }
+
     if (data.type === "UPDATE") {
       window.lastKnownState = data;
     }

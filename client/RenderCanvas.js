@@ -2,6 +2,7 @@ import { globalWs } from "./ConnectionManager.js";
 const canvas = document.getElementById("game-canvas");
 
 let isDraggingFromRack = false;
+let isMouseOverRack = false;
 
 export const camera = {
   x: 20, y: 20, zoom: 40,
@@ -26,6 +27,8 @@ export const rackState = {
 };
 
 let removalAnimations = [];
+let jumpAnimations = [];
+let trashAnimations = [];
 
 export function triggerRemovalAnimation(tiles) {
   const startTime = performance.now();
@@ -38,11 +41,44 @@ export function triggerRemovalAnimation(tiles) {
       letter: tile.letter || "?",
       color: tile.color || "#ef4444", // Default to a "error/remove" red
       startTime,
-      duration
+      duration,
+      // Fix: Copy screen space properties
+      screenX: tile.screenX,
+      screenY: tile.screenY,
+      isScreenSpace: tile.isScreenSpace
     });
   });
 
   // Force an immediate start
+  ensureAnimationLoop();
+}
+
+export function triggerTrashAnimation(tile) {
+  trashAnimations.push({
+    letter: tile.letter,
+    color: tile.color || '#4f46e5',
+    screenX: tile.screenX,
+    screenY: tile.screenY,
+    startTime: performance.now(),
+    duration: 500,
+    startAngle: Math.random() * Math.PI * 2
+  });
+  ensureAnimationLoop();
+}
+
+export function triggerWaveAnimation(tiles) {
+  // Sort tiles by X coordinate (left to right) for wave effect
+  const sorted = [...tiles].sort((a, b) => a.x - b.x);
+
+  sorted.forEach((tile, index) => {
+    // Add jump animation with delay based on index
+    jumpAnimations.push({
+      x: tile.x,
+      y: tile.y,
+      startTime: performance.now() + index * 100, // 100ms staggered delay
+      duration: 400
+    });
+  });
   ensureAnimationLoop();
 }
 
@@ -58,6 +94,9 @@ function animationLoop() {
 
   // Filter out finished animations
   removalAnimations = removalAnimations.filter(anim => now < anim.startTime + anim.duration);
+  jumpAnimations = jumpAnimations.filter(anim => now < anim.startTime + anim.duration + 50);
+  trashAnimations = trashAnimations.filter(anim => now < anim.startTime + anim.duration);
+
   if (rackState.arrivalAnimations) {
     rackState.arrivalAnimations = rackState.arrivalAnimations.filter(anim => now < anim.startTime + anim.duration);
   }
@@ -79,8 +118,10 @@ function animationLoop() {
 
   const hasRemoval = removalAnimations.length > 0;
   const hasArrival = rackState.arrivalAnimations && rackState.arrivalAnimations.length > 0;
+  const hasJump = jumpAnimations.length > 0;
+  const hasTrash = trashAnimations.length > 0;
 
-  if (hasRemoval || hasArrival || needsMoreFrames) {
+  if (hasRemoval || hasArrival || hasJump || hasTrash || needsMoreFrames) {
     requestAnimationFrame(animationLoop);
   } else {
     isLoopRunning = false;
@@ -90,13 +131,25 @@ function animationLoop() {
 export function renderCanvas(state) {
   if (!canvas || !state) return;
   const ctx = canvas.getContext("2d");
-  const parent = canvas.parentElement;
   const dpr = window.devicePixelRatio || 1;
-  const rect = parent.getBoundingClientRect();
 
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
+  // Use parent for sizing, but canvas rect for coordinates
+  const parent = canvas.parentElement;
+  const parentRect = parent.getBoundingClientRect();
+
+  // Set canvas internal resolution (for high-DPI rendering)
+  canvas.width = parentRect.width * dpr;
+  canvas.height = parentRect.height * dpr;
+
+  // CRITICAL: Set explicit CSS size to match parent dimensions
+  canvas.style.width = parentRect.width + 'px';
+  canvas.style.height = parentRect.height + 'px';
+
+  // Now get the actual canvas rect (should match parent after sizing)
+  const rect = canvas.getBoundingClientRect();
+
   ctx.scale(dpr, dpr);
+
 
   // Background
   ctx.fillStyle = "#f1f5f9";
@@ -118,28 +171,70 @@ export function renderCanvas(state) {
 
   render_grid(ctx, startX, endX, startY, endY, cellSize);
 
-  render_pending(ctx, state, startX, endX, startY, endY, cellSize);
+  render_pending(ctx, state, startX, endX, startY, endY, cellSize, rect);
   render_textbox(ctx, state, startX, endX, startY, endY, cellSize);
 
-  // --- GHOST PREVIEW (Matches User Color) ---
-  const ghost = screenToWorld(camera.mouseX, camera.mouseY, rect);
   // Read the CSS variable we set in ConnectionManager.js
   const userColor = getComputedStyle(document.documentElement).getPropertyValue('--user-color') || '#4f46e5';
 
-  ctx.fillStyle = userColor;
-  ctx.globalAlpha = 0.2; // Keep it faint
+  // --- GHOST PREVIEW (Matches User Color) ---
+  // Only show ghost preview when NOT hovering over rack
+  if (!isMouseOverRack) {
+    const ghost = screenToWorld(camera.mouseX, camera.mouseY, rect);
 
-  ctx.beginPath();
-  // Using 4px padding and 6px radius to match confirmed tiles
-  ctx.roundRect(ghost.tileX * cellSize + 4, ghost.tileY * cellSize + 4, cellSize - 8, cellSize - 8, 6);
-  ctx.fill();
+    ctx.fillStyle = userColor;
+    ctx.globalAlpha = 0.2; // Keep it faint
 
-  ctx.globalAlpha = 1.0;
+    ctx.beginPath();
+    // Using 4px padding and 6px radius to match confirmed tiles
+    ctx.roundRect(ghost.tileX * cellSize + 4, ghost.tileY * cellSize + 4, cellSize - 8, cellSize - 8, 6);
+    ctx.fill();
+
+    ctx.globalAlpha = 1.0;
+  }
 
   ctx.restore();
 
   render_rack(ctx, rect, userColor);
-} function render_rack(ctx, rect, userColor) {
+  render_trash_anim(ctx); // Render trash animations on top of rack
+}
+
+function render_trash_anim(ctx) {
+  trashAnimations.forEach(anim => {
+    const elapsed = performance.now() - anim.startTime;
+    const progress = Math.min(elapsed / anim.duration, 1);
+
+    // Ease In Back (anticipation) then suck in
+    const ease = progress < 0.5
+      ? 2 * progress * progress
+      : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+    const scale = 1 - ease;
+    const opacity = 1 - progress;
+    const rotation = anim.startAngle + progress * Math.PI * 4; // Spin 2 times
+
+    ctx.save();
+    ctx.translate(anim.screenX, anim.screenY);
+    ctx.rotate(rotation);
+    ctx.scale(scale, scale);
+
+    // Draw Tile
+    const size = 60; // Same as rack tile
+    ctx.fillStyle = anim.color;
+    ctx.beginPath();
+    ctx.roundRect(-size / 2, -size / 2, size, size, 10);
+    ctx.fill();
+
+    ctx.fillStyle = "white";
+    ctx.font = `bold ${size * 0.5}px Lexend, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(anim.letter, 0, 0);
+
+    ctx.restore();
+  });
+}
+function render_rack(ctx, rect, userColor) {
   const tileCount = 10;
   const tileSize = 60;
   const gap = 12;
@@ -148,17 +243,17 @@ export function renderCanvas(state) {
   const rackY = rect.height - 100;
 
   // --- BUTTON POSITIONS ---
-  const buttonsX = startX + totalWidth + 50; // Offset to the right
-  const destroyY = rackY + 10;
-  const rerollY = rackY + 55;
+  const buttonsX = startX + totalWidth + 50; // Offset slightly to the right
+  const destroyY = rackY + 15;
+  const rerollY = rackY + 65;
 
   // 1. Draw Extended Rack Background
   ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
   ctx.shadowColor = "rgba(0,0,0,0.1)";
   ctx.shadowBlur = 20;
   ctx.beginPath();
-  // Width extended by 100px to house buttons
-  ctx.roundRect(startX - 20, rackY - 20, totalWidth + 110, tileSize + 40, 24);
+  // Width extended to house repositioned buttons
+  ctx.roundRect(startX - 20, rackY - 20, totalWidth + 110, tileSize + 70, 24);
   ctx.fill();
   ctx.shadowBlur = 0;
 
@@ -193,20 +288,26 @@ export function renderCanvas(state) {
 
   // 3. Draw DESTROY Button (Trash)
   ctx.save();
-  // Highlight red if dragging over it
-  ctx.fillStyle = rackState.isHoveringDestroy ? "#ef4444" : "#fee2e2";
+  // Fixed color as requested (no hover effect)
+  ctx.fillStyle = "#fee2e2";
   ctx.beginPath();
   ctx.arc(buttonsX, destroyY, 18, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = rackState.isHoveringDestroy ? "#ffffff" : "#ef4444";
+  ctx.fillStyle = "#ef4444";
   ctx.font = "18px 'Material Icons Round'";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("delete", buttonsX, destroyY);
   ctx.restore();
 
-  // 4. Draw REROLL Button (Refresh)if (rackState.isRerollLocked)
+  // 4. Draw REROLL Button (Refresh)
+  // Highlight if hovered
+  ctx.fillStyle = rackState.isHoveringReroll ? "rgba(99, 102, 241, 0.2)" : "rgba(0,0,0,0.05)";
+  ctx.beginPath();
+  ctx.arc(buttonsX, rerollY, 20, 0, Math.PI * 2);
+  ctx.fill();
+
   if (rackState.isRerollLocked) {
     ctx.fillStyle = "rgba(99, 102, 241, 0.3)"; // Indigo tint
     ctx.beginPath();
@@ -225,7 +326,7 @@ export function renderCanvas(state) {
   }
 
   // Icon
-  ctx.fillStyle = rackState.isRerollLocked ? "#94a3b8" : "#6366f1";
+  ctx.fillStyle = rackState.isRerollLocked ? "#94a3b8" : (rackState.isHoveringReroll ? "#4f46e5" : "#6366f1");
   ctx.font = "18px 'Material Icons Round'";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -241,7 +342,8 @@ export function renderCanvas(state) {
       tileSize,
       rackState.tiles[rackState.draggingIndex],
       true,
-      1.1 // Slight pop scale while dragging
+      1.1, // Slight pop scale while dragging
+      rackState.isHoveringDestroy // Pass hover state to change color
     );
   }
 }
@@ -271,7 +373,7 @@ function triggerRerollCooldown() {
   animate();
 }
 
-function drawTile(ctx, x, y, size, letter, isDragging, scale = 1) {
+function drawTile(ctx, x, y, size, letter, isDragging, scale = 1, isHoveringDestroy = false) {
   const userColor = getComputedStyle(document.documentElement).getPropertyValue('--user-color') || '#4f46e5';
 
   ctx.save();
@@ -288,7 +390,8 @@ function drawTile(ctx, x, y, size, letter, isDragging, scale = 1) {
     ctx.shadowBlur = 15;
   }
 
-  ctx.fillStyle = userColor; // Use the passed userColor
+  // Use red color when hovering over destroy button
+  ctx.fillStyle = isHoveringDestroy ? "#ef4444" : userColor;
   ctx.beginPath();
   ctx.roundRect(x, y, size, size, 10);
   ctx.fill();
@@ -331,9 +434,38 @@ function render_textbox(ctx, state, startX, endX, startY, endY, cellSize) {
       const cx = cell.x * cellSize + cellSize / 2;
       const cy = cell.y * cellSize + cellSize / 2;
 
+      // --- CHECK JUMP ANIMATION (Wiggle) ---
+      let jumpOffset = 0;
+      let rotation = 0;
+      const jumpAnim = jumpAnimations.find(a => a.x === cell.x && a.y === cell.y);
+      if (jumpAnim) {
+        const now = performance.now();
+        if (now >= jumpAnim.startTime) {
+          const elapsed = now - jumpAnim.startTime;
+          const progress = Math.min(elapsed / jumpAnim.duration, 1);
+
+          // Jump: Up and Down
+          // Jump: Minimal vertical motion
+          jumpOffset = -5 * Math.sin(progress * Math.PI);
+
+          // Wiggle: Tilt left and right (More intense)
+          // fast wiggle: sin(progress * 8PI)
+          rotation = 0.3 * Math.sin(progress * Math.PI * 8) * (1 - progress);
+        }
+      }
+
       // --- DYNAMIC COLOR LOGIC ---
       // Use cell.color (sent from server) or fallback to primary indigo
       const tileColor = cell.color || "#4f46e5";
+
+      ctx.save();
+      // Apply jump & wiggle transform
+      if (jumpOffset !== 0 || rotation !== 0) {
+        ctx.translate(cx, cy); // Move to center
+        ctx.translate(0, jumpOffset);
+        ctx.rotate(rotation);
+        ctx.translate(-cx, -cy); // Move back
+      }
 
       // Draw Letter Tile Background
       ctx.fillStyle = tileColor;
@@ -347,6 +479,8 @@ function render_textbox(ctx, state, startX, endX, startY, endY, cellSize) {
       // Draw Letter Text (White looks best on colored backgrounds)
       ctx.fillStyle = "white";
       ctx.fillText(cell.letter.toUpperCase(), cx, cy);
+
+      ctx.restore();
     }
   });
 
@@ -373,7 +507,7 @@ function render_textbox(ctx, state, startX, endX, startY, endY, cellSize) {
   });
 }
 
-export function render_pending(ctx, state, startX, endX, startY, endY, cellSize) {
+export function render_pending(ctx, state, startX, endX, startY, endY, cellSize, rect) {
 
   // RenderCanvas.js - inside render_textbox
   (state.pending_tiles || []).forEach(cell => {
@@ -410,10 +544,26 @@ export function render_pending(ctx, state, startX, endX, startY, endY, cellSize)
 
     const easeOut = 1 - Math.pow(1 - progress, 3);
     const opacity = 1 - progress;
-    const explodeDist = cellSize * 0.8 * easeOut;
-    const halfSize = (cellSize - 8) / 2;
-    const cx = anim.x * cellSize + cellSize / 2;
-    const cy = anim.y * cellSize + cellSize / 2;
+
+    let cx, cy, halfSize, explodeDist;
+
+    if (anim.isScreenSpace) {
+      // Special handling for screen-space animations (e.g., trash button)
+      // We need to work in screen coordinates, so save/restore the transform
+      ctx.restore(); // Exit world space
+      ctx.save(); // Enter screen space
+
+      cx = anim.screenX;
+      cy = anim.screenY;
+      halfSize = 30; // Fixed size for screen space
+      explodeDist = 40 * easeOut;
+    } else {
+      // Normal world-space animation for board tiles
+      halfSize = (cellSize - 8) / 2;
+      explodeDist = cellSize * 0.8 * easeOut;
+      cx = anim.x * cellSize + cellSize / 2;
+      cy = anim.y * cellSize + cellSize / 2;
+    }
 
     const quadrants = [
       { dx: -1, dy: -1, rot: -0.5 },
@@ -442,10 +592,21 @@ export function render_pending(ctx, state, startX, endX, startY, endY, cellSize)
 
       // Draw fragment of the letter
       ctx.fillStyle = "white";
-      ctx.font = `bold ${cellSize * 0.4}px Lexend, sans-serif`;
+      const fontSize = anim.isScreenSpace ? 24 : cellSize * 0.4;
+      ctx.font = `bold ${fontSize}px Lexend, sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
       ctx.fillText(anim.letter, 0, 0);
       ctx.restore(); // Restore per quadrant
     });
+
+    if (anim.isScreenSpace) {
+      ctx.restore(); // Exit screen space
+      ctx.save(); // Re-enter world space
+      ctx.translate(rect.width / 2, rect.height / 2);
+      ctx.scale(camera.zoom / 40, camera.zoom / 40);
+      ctx.translate(-camera.x, -camera.y);
+    }
   });
 
 }
@@ -478,16 +639,42 @@ canvas.addEventListener('mousemove', (e) => {
   const startX = (rect.width - totalWidth) / 2;
   const rackY = rect.height - 100;
   const buttonsX = startX + totalWidth + 50;
-  const destroyY = rackY + 10;
-  const rerollY = rackY + 55;
+  const destroyY = rackY + 15;
+  const rerollY = rackY + 65;
+
+  // --- CHECK IF MOUSE IS OVER RACK AREA ---
+  isMouseOverRack = mouseX >= startX - 20 &&
+    mouseX <= startX + totalWidth + 110 &&
+    mouseY >= rackY - 20 &&
+    mouseY <= rackY + tileSize + 60;
+
+  // --- TILE HOVER DETECTION FOR LIFT ANIMATION ---
+  let newHoveredIndex = -1;
+  if (!isDraggingFromRack && isMouseOverRack) {
+    rackState.tiles.forEach((letter, i) => {
+      if (!letter) return;
+      const x = startX + i * (tileSize + gap);
+      if (mouseX >= x && mouseX <= x + tileSize && mouseY >= rackY - 20 && mouseY <= rackY + tileSize + 20) {
+        newHoveredIndex = i;
+      }
+    });
+  }
+
+  // Update hovered index and trigger animation loop if changed
+  if (rackState.hoveredIndex !== newHoveredIndex) {
+    rackState.hoveredIndex = newHoveredIndex;
+    ensureAnimationLoop(); // Start animation loop for smooth hover transition
+  }
 
   if (isDraggingFromRack) {
     rackState.dragX = mouseX;
     rackState.dragY = mouseY;
 
-    // Check distance to Destroy button for hover effect
+    // Check distance to buttons for hover effect
     const distToDestroy = Math.hypot(mouseX - buttonsX, mouseY - destroyY);
+    const distToReroll = Math.hypot(mouseX - buttonsX, mouseY - rerollY);
     rackState.isHoveringDestroy = distToDestroy < 25;
+    rackState.isHoveringReroll = distToReroll < 20;
 
   }
   else if (camera.isDragging) {
@@ -499,6 +686,27 @@ canvas.addEventListener('mousemove', (e) => {
     camera.lastMouseY = e.clientY;
   }
 
+
+  if (isDraggingFromRack || camera.isDragging) {
+    // STAY CLOSED WHILE DRAGGING
+    canvas.style.cursor = "url('/static/hand_small_closed.png') 8 8, grabbing";
+  }
+  else {
+    // Check for hover targets
+    const distToReroll = Math.hypot(mouseX - buttonsX, mouseY - rerollY);
+    const distToDestroy = Math.hypot(mouseX - buttonsX, mouseY - destroyY);
+
+    rackState.isHoveringReroll = distToReroll < 20;
+    rackState.isHoveringDestroy = distToDestroy < 25;
+
+    if (rackState.isHoveringReroll || rackState.isHoveringDestroy) {
+      // Hovering buttons: Pointing Hand
+      canvas.style.cursor = "url('/static/hand_small_point.png') 8 8, pointer";
+    } else {
+      // Default: Open Hand
+      canvas.style.cursor = "url('/static/hand_small_open.png') 8 8, default";
+    }
+  }
   // Single render call to keep performance high
   renderCanvas(window.lastKnownState || { board: [], players: {} });
 });
@@ -515,24 +723,36 @@ canvas.addEventListener('mousedown', (e) => {
   const startX = (rect.width - totalWidth) / 2;
   const rackY = rect.height - 100;
 
+  // Check if mouse is over entire rack area (including buttons)
+  const isOverRackArea = mouseX >= startX - 20 &&
+    mouseX <= startX + totalWidth + 110 &&
+    mouseY >= rackY - 20 &&
+    mouseY <= rackY + tileSize + 60;
+
   rackState.tiles.forEach((letter, i) => {
     if (!letter) return; // Can't drag empty slot
     const x = startX + i * (tileSize + gap);
-    // Include hover offset in hit detection if necessary, but usually just regular rackY is fine
-    const yWithOffset = rackY + (rackState.hoverOffsets[i] || 0);
 
-    if (mouseX >= x && mouseX <= x + tileSize && mouseY >= yWithOffset && mouseY <= yWithOffset + tileSize) {
+    // Expanded hitbox for easier dragging - add padding around the tile
+    const hitboxPadding = 10;
+    const hitboxX = x - hitboxPadding;
+    const hitboxY = rackY - 20; // Use fixed position, ignore hover offset for hitbox
+    const hitboxWidth = tileSize + hitboxPadding * 2;
+    const hitboxHeight = tileSize + 40; // Extended vertical region
+
+    if (mouseX >= hitboxX && mouseX <= hitboxX + hitboxWidth &&
+      mouseY >= hitboxY && mouseY <= hitboxY + hitboxHeight) {
       rackState.draggingIndex = i;
       rackState.dragOffsetX = mouseX - x;
-      rackState.dragOffsetY = mouseY - yWithOffset;
+      rackState.dragOffsetY = mouseY - (rackY + (rackState.hoverOffsets[i] || 0));
       isDraggingFromRack = true;
       rackState.dragX = mouseX;
       rackState.dragY = mouseY;
     }
   });
 
-  // If not rack, handle camera drag
-  if (!isDraggingFromRack) {
+  // Only enable camera drag if NOT over rack area at all
+  if (!isDraggingFromRack && !isOverRackArea) {
     camera.isDragging = true;
     camera.wasDragging = false;
     camera.lastMouseX = e.clientX;
@@ -553,15 +773,28 @@ window.addEventListener('mouseup', (e) => {
   const startX = (rect.width - totalWidth) / 2;
   const rackY = rect.height - 100;
   const buttonsX = startX + totalWidth + 50;
-  const destroyY = rackY + 10;
-  const rerollY = rackY + 55;
+  const destroyY = rackY + 15;
+  const rerollY = rackY + 65;
 
   if (isDraggingFromRack) {
     // Check if dropped on Destroy button
     const distToDestroy = Math.hypot(mouseX - buttonsX, mouseY - destroyY);
 
     if (distToDestroy < 25) {
-      // ACTION: DESTROY
+      // ACTION: DESTROY - Trigger sucking animation
+      const letter = rackState.tiles[rackState.draggingIndex];
+      const userColor = getComputedStyle(document.documentElement).getPropertyValue('--user-color') || '#4f46e5';
+
+      // Create a fake tile at destroy button position for animation
+      import("./RenderCanvas.js").then(m => {
+        m.triggerTrashAnimation({
+          letter: letter,
+          color: userColor,
+          screenX: buttonsX,
+          screenY: destroyY
+        });
+      });
+
       if (globalWs?.readyState === WebSocket.OPEN) {
         globalWs.send(JSON.stringify({
           type: "DESTROY_TILE",
@@ -574,7 +807,7 @@ window.addEventListener('mouseup', (e) => {
     } else {
       // Check if dropped back on Rack (to cancel)
       const isOverRack = mouseX >= startX - 20 &&
-        mouseX <= startX + totalWidth + 20 &&
+        mouseX <= startX + totalWidth + 110 &&
         mouseY >= rackY - 20;
 
       if (!isOverRack) {
@@ -582,19 +815,27 @@ window.addEventListener('mouseup', (e) => {
         const worldPos = screenToWorld(mouseX, mouseY, rect);
         const letter = rackState.tiles[rackState.draggingIndex];
 
-        if (globalWs?.readyState === WebSocket.OPEN) {
-          globalWs.send(JSON.stringify({
-            type: "PLACE",
-            x: worldPos.tileX,
-            y: worldPos.tileY,
-            letter: letter.toUpperCase(),
-            color: getComputedStyle(document.documentElement).getPropertyValue('--user-color') || '#4f46e5',
-            hand_index: rackState.draggingIndex
-          }));
-        }
+        // --- CHECK IF POSITION IS VALID (not occupied) ---
+        const state = window.lastKnownState || { board: [], pending_tiles: [] };
+        const isOccupied = (state.board || []).some(cell => cell.x === worldPos.tileX && cell.y === worldPos.tileY) ||
+          (state.pending_tiles || []).some(cell => cell.x === worldPos.tileX && cell.y === worldPos.tileY);
 
-        // --- OPTIMISTIC UI: Remove tile immediately to prevent flicker ---
-        rackState.tiles[rackState.draggingIndex] = null;
+        if (!isOccupied) {
+          if (globalWs?.readyState === WebSocket.OPEN) {
+            globalWs.send(JSON.stringify({
+              type: "PLACE",
+              x: worldPos.tileX,
+              y: worldPos.tileY,
+              letter: letter.toUpperCase(),
+              color: getComputedStyle(document.documentElement).getPropertyValue('--user-color') || '#4f46e5',
+              hand_index: rackState.draggingIndex
+            }));
+          }
+
+          // --- OPTIMISTIC UI: Remove tile immediately to prevent flicker ---
+          rackState.tiles[rackState.draggingIndex] = null;
+        }
+        // If occupied, tile stays in hand (no action taken)
       }
     }
   } else {

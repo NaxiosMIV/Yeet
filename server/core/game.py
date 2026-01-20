@@ -783,6 +783,10 @@ class GameRoom:
             # pending_tiles 정리 (Broadcasting 전에 수행해야 정확한 상태가 전달됨)
             self.pending_tiles = [pt for pt in self.pending_tiles if (pt['x'], pt['y']) not in self.board]
 
+            # Broadcast word completion with animation data
+            completed_tiles = [{'x': bx, 'y': by, 'letter': self.board[(bx, by)]['letter'], 'color': new_color} 
+                             for bx, by in word_coords if (bx, by) in self.board]
+            await self.broadcast({"type": "WORD_COMPLETED", "word": word, "tiles": completed_tiles})
             await self.broadcast_state()
             await self.broadcast({"type": "MODAL", "message": f"Word completed: {word}"})
         
