@@ -139,7 +139,8 @@ export function renderCanvas(state) {
   ctx.restore();
 
   render_rack(ctx, rect, userColor);
-} function render_rack(ctx, rect, userColor) {
+}
+function render_rack(ctx, rect, userColor) {
   const tileCount = 10;
   const tileSize = 60;
   const gap = 12;
@@ -499,6 +500,24 @@ canvas.addEventListener('mousemove', (e) => {
     camera.lastMouseY = e.clientY;
   }
 
+  
+  if (isDraggingFromRack || camera.isDragging) {
+        // STAY CLOSED WHILE DRAGGING
+        canvas.style.cursor = "url('/static/hand_small_closed.png') 32 32, grabbing";
+    } 
+    else {
+        // Check for hover targets
+        const distToReroll = Math.hypot(mouseX - buttonsX, mouseY - rerollY);
+        const distToDestroy = Math.hypot(mouseX - buttonsX, mouseY - destroyY);
+
+        if (distToReroll < 20 || distToDestroy < 25) {
+            // Hovering buttons: Pointing Hand
+            canvas.style.cursor = "url('/static/hand_small_point.png') 32 32, pointer";
+        } else {
+            // Default: Open Hand
+            canvas.style.cursor = "url('/static/hand_small_open.png') 32 32, default";
+        }
+    }
   // Single render call to keep performance high
   renderCanvas(window.lastKnownState || { board: [], players: {} });
 });

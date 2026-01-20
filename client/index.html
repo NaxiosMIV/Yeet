@@ -13,24 +13,36 @@
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
   
   <style>
+    
     @layer utilities {
       .animate-wobble-pop {
         animation: wobble-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
       }
     }
     /* Default body state */
-    body {
-        cursor: url('/static/hand_small_open.png') 32 32, auto;
+    /* 1. Normal State: Open */
+    body, #game-canvas {
+        cursor: url('/static/hand_small_open.png') 8 8, auto;
     }
 
-    /* Clicking buttons or links */
-    button, a, select, #chat-toggle {
-        cursor: url('/static/hand_small_point.png') 32 32, pointer;
+    /* 2. Hovering buttons, links, or inputs: Pointing hand */
+    button, a, select, input[type="range"], #chat-toggle, .leaderboard-item {
+        cursor: url('/static/hand_small_point.png') 8 8, pointer;
     }
 
-    /* While holding a click on any button */
-    button:active, a:active {
-        cursor: url('/static/hand_small_close.png') 32 32, grabbing;
+    /* 3. Global Click/Drag: Closed hand snaps shut anywhere on the screen */
+    body:active {
+        cursor: url('/static/hand_small_closed.png') 8 8, grabbing !important;
+    }
+
+    /* 4. Ensure the closed hand persists over buttons when they are clicked */
+    button:active, a:active, select:active {
+        cursor: url('/static/hand_small_closed.png') 8 8, grabbing !important;
+    }
+
+    /* 5. Special case: Text inputs should still show the text I-beam for clarity */
+    input[type="text"] {
+        cursor: url('/static/bracket_a_vertical.png') 8 8, text !important;
     }
 
     @keyframes wobble-pop {
