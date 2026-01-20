@@ -262,6 +262,8 @@ class GameRoom:
             temp_tile = {'x': x, 'y': y, 'letter': letter}
             self.pending_tiles.append(temp_tile)
             
+            prefix_invalid = False
+            invalid_direction = None
             try:
                 if lang == 'ko':
                     h_prefix = self._get_raw_jamos_at(x, y, 'h')
@@ -273,12 +275,14 @@ class GameRoom:
                 # Check horizontal prefix
                 if len(h_prefix) > 1 and not has_valid_prefix(h_prefix, lang):
                     logger.debug(f"Invalid horizontal prefix: {h_prefix}")
-                    return False, f"No valid word can be formed horizontally"
+                    prefix_invalid = True
+                    invalid_direction = 'h'
                 
                 # Check vertical prefix
                 if len(v_prefix) > 1 and not has_valid_prefix(v_prefix, lang):
                     logger.debug(f"Invalid vertical prefix: {v_prefix}")
-                    return False, f"No valid word can be formed vertically"
+                    prefix_invalid = True
+                    invalid_direction = 'v'
             finally:
                 # Remove temporary tile
                 self.pending_tiles.remove(temp_tile)
@@ -325,6 +329,36 @@ class GameRoom:
             else:
                 idx = player.hand.index(letter_upper)
                 player.hand[idx] = None
+
+            # If prefix is invalid, immediately explode the tile (same as finalize failure)
+            if prefix_invalid:
+                # Get the tile we just added
+                placed_tile = self.pending_tiles[-1]
+                
+                # Apply penalty
+                penalty_points = 10
+                player.score = max(0, player.score - penalty_points)
+                logger.info(f"Invalid prefix penalty applied to {player.name}: -{penalty_points}")
+                
+                # Return tile to hand
+                if hand_index is not None and 0 <= hand_index < len(player.hand):
+                    if player.hand[hand_index] is None:
+                        player.hand[hand_index] = letter
+                    else:
+                        for i in range(len(player.hand)):
+                            if player.hand[i] is None:
+                                player.hand[i] = letter
+                                break
+                
+                # Remove from pending
+                self.pending_tiles.remove(placed_tile)
+                
+                # Broadcast tile placement first, then removal animation
+                await self.broadcast({"type": "UPDATE", "state": self.get_state()})
+                await self.broadcast({"type": "TILE_REMOVED", "tiles": [placed_tile]})
+                await self.broadcast({"type": "MODAL", "message": f"Invalid placement! -{penalty_points} points"})
+                
+                return True, None  # Return True so client knows placement was "attempted"
 
             # 즉시 검증 시도
             finalized_h = False
