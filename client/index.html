@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Lexend:wght@700&display=swap"
     rel="stylesheet" />
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
-
+  
   <style>
     @layer utilities {
       .animate-wobble-pop {
@@ -34,7 +34,7 @@
       --tile-lavender: #EDE9FE;
       --tile-blue: #DBEAFE;
     }
-
+    
     .hidden {
       display: none;
     }
@@ -138,12 +138,29 @@
       animation: pulse-border 0.6s ease-out;
       z-index: 10;
     }
+    #game-logo {
+      position: fixed; /* 'fixed' ensures it stays even if screen scrolls */
+      bottom: 20px;
+      left: 20px;
+      width: 150px;
+      height: auto;
+      z-index: 999; /* Stay above canvas, chat, and countdown */
+      pointer-events: none; /* VERY IMPORTANT: Clicks go through to the game board */
+      user-select: none;
+      filter: drop-shadow(0px 4px 8px rgba(0, 0, 0, 0.3));
+    }
+
+    /* Header image specific styling to keep it clean */
+    header img {
+      user-select: none;
+      -webkit-user-drag: none;
+    }
   </style>
 </head>
 
-<body class="font-body bg-[#F8FAFC] min-h-screen overflow-hidden">
+<body class="font-body bg-[#eaebed] min-h-screen overflow-hidden">
 
-  <div id="start-screen" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-50">
+  <div id="start-screen" class="fixed inset-0 z-[100] flex items-center justify-center bg-[#eac5ff];">
     <div id="explosion-viewport" class="relative w-[400px] h-[400px]">
 
       <div id="setup-section"
@@ -194,7 +211,7 @@
       <div class="split-piece br z-[60]">
         <div class="card-content"></div>
       </div>
-
+      
       <div id="auth-overlay"
         class="absolute inset-0 z-[70] flex flex-col items-center justify-end pb-12 pointer-events-none">
         <div id="googleButtonContainer" class="pointer-events-auto mb-3"></div>
@@ -288,10 +305,10 @@
       </div>
 
       <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8">
-        <div class="flex items-center">
-          <h1 class="font-display font-bold text-xl uppercase tracking-tighter text-slate-900">
-            WordMasters <span class="text-[#6366F1]">Royale</span>
-          </h1>
+        <div class="flex items-center gap-3">
+          <a href="https://aciform-untoughly-filomena.ngrok-free.dev" target="_blank" class="hover:opacity-80 transition-opacity">
+            <img src="/static/Logo.png" alt="game-logo" class="h-10 w-auto object-contain">
+          </a>
         </div>
 
         <div class="flex items-center gap-4">
@@ -389,14 +406,9 @@
 
   <template id="login-template">
     <div class="w-[400px] h-[400px] p-10 flex flex-col items-center text-center pt-10 bg-white">
-      <div class="p-5 bg-indigo-50 rounded-3xl mb-6">
-        <span class="material-icons-round text-[#6366F1] text-5xl">rocket_launch</span>
-      </div>
-      <h1 class="text-4xl font-display font-bold text-slate-900 tracking-tight">WordMasters</h1>
-      <p class="text-slate-400 mt-2 font-medium">Multiplayer Royale</p>
+      <img src="/static/Logo.png" alt="game-logo">
     </div>
   </template>
-
   <script type="module" src="/static/ConnectionManager.js"></script>
 </body>
 
