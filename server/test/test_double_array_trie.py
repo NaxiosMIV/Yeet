@@ -151,6 +151,54 @@ if __name__ == "__main__":
     test_case_sensitivity()
     test_memory_and_size()
     
+    # Test BidirectionalTrie
+    print("\n" + "=" * 50)
+    print("BidirectionalTrie Tests")
+    print("=" * 50)
+    
+    from core.double_array_trie import BidirectionalTrie
+    
+    print("\nTesting BidirectionalTrie suffix validation...")
+    btrie = BidirectionalTrie()
+    btrie.build(["hello", "world", "caring", "playing", "testing"])
+    
+    # Prefix checks (should work like regular trie)
+    assert btrie.has_prefix("hel") == True, "'hel' should be valid prefix"
+    assert btrie.has_prefix("wor") == True, "'wor' should be valid prefix"
+    assert btrie.has_prefix("xyz") == False, "'xyz' should be invalid prefix"
+    
+    # Suffix checks
+    assert btrie.has_suffix("ing") == True, "'ing' should be valid suffix"
+    assert btrie.has_suffix("llo") == True, "'llo' should be valid suffix (hello)"
+    assert btrie.has_suffix("rld") == True, "'rld' should be valid suffix (world)"
+    assert btrie.has_suffix("xyz") == False, "'xyz' should be invalid suffix"
+    
+    # Substring checks (prefix OR suffix)
+    assert btrie.has_substring("hel") == True, "'hel' valid as prefix"
+    assert btrie.has_substring("ing") == True, "'ing' valid as suffix"
+    assert btrie.has_substring("xyz") == False, "'xyz' invalid"
+    
+    print("✓ BidirectionalTrie suffix tests passed!")
+    
+    print("\nTesting BidirectionalTrie with Korean jamo...")
+    ko_trie = BidirectionalTrie()
+    ko_words = [
+        "ㅅㅏㄱㅘ",      # 사과
+        "ㅅㅏㄹㅏㅁ",    # 사람
+        "ㅎㅏㄴㄱㅡㄹ",  # 한글
+    ]
+    ko_trie.build(ko_words)
+    
+    # Korean prefix
+    assert ko_trie.has_prefix("ㅅㅏ") == True, "'ㅅㅏ' valid prefix"
+    
+    # Korean suffix (reversed: 과 -> ㅘㄱ reversed from ㄱㅘ)
+    assert ko_trie.has_suffix("ㄱㅘ") == True, "'ㄱㅘ' valid suffix (사과)"
+    assert ko_trie.has_suffix("ㄱㅡㄹ") == True, "'ㄱㅡㄹ' valid suffix (한글)"
+    
+    print("✓ Korean BidirectionalTrie tests passed!")
+
     print("\n" + "=" * 50)
     print("✨ All tests passed!")
     print("=" * 50)
+

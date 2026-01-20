@@ -120,6 +120,19 @@ async def save_game_result(room_code: str, players: dict):
                 INSERT INTO game_stats (game_id, user_uuid, score, rank)
                 VALUES ($1, $2::uuid, $3, $4)
             """, game_id, p_uuid, data["score"], rank)
+        
+        # 4. 각 플레이어의 user_stats 갱신
+        for rank, (p_uuid, data) in enumerate(sorted_players, 1):
+            is_winner = 1 if rank == 1 else 0
+            await conn.execute("""
+                INSERT INTO user_stats (user_uuid, total_games, total_score, total_wins)
+                VALUES ($1::uuid, 1, $2, $3)
+                ON CONFLICT (user_uuid) DO UPDATE SET
+                    total_games = user_stats.total_games + 1,
+                    total_score = user_stats.total_score + $2,
+                    total_wins = user_stats.total_wins + $3,
+                    updated_at = CURRENT_TIMESTAMP
+            """, p_uuid, data["score"], is_winner)
             
         return game_id
     except Exception as e:
