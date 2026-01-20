@@ -8,7 +8,7 @@ from core.words import get_word_in_cache, get_random_word, has_valid_prefix
 from core.tiles import generate_weighted_tiles, TileBag
 from core.database import save_game_result
 from core.logging_config import get_logger
-from core.korean_utils import compose_word, is_valid_syllable_pattern
+from core.korean_utils import compose_word, is_valid_syllable_pattern, count_syllables
 
 logger = get_logger(__name__)
 
@@ -476,18 +476,18 @@ class GameRoom:
                 v_raw = self._get_raw_jamos_at(x, y, 'v')
                 
                 # Validate horizontal word
-                if len(h_raw) > 1 and is_valid_syllable_pattern(h_raw):
+                if len(h_raw) > 2 and is_valid_syllable_pattern(h_raw):
                     h_valid = get_word_in_cache(h_raw, lang=lang).get("is_valid")
-                    v_valid = len(v_raw) == 1 or (is_valid_syllable_pattern(v_raw) and get_word_in_cache(v_raw, lang=lang).get("is_valid"))
+                    v_valid = len(v_raw) <= 2 or (is_valid_syllable_pattern(v_raw) and get_word_in_cache(v_raw, lang=lang).get("is_valid"))
                     
                     if h_valid and v_valid:
                         await self.finalize_pending_group(h_group_id, 'h')
                         finalized_h = True
                 
                 # Validate vertical word
-                if len(v_raw) > 1 and is_valid_syllable_pattern(v_raw):
+                if len(v_raw) > 2 and is_valid_syllable_pattern(v_raw):
                     v_valid = get_word_in_cache(v_raw, lang=lang).get("is_valid")
-                    h_valid = len(h_raw) == 1 or (is_valid_syllable_pattern(h_raw) and get_word_in_cache(h_raw, lang=lang).get("is_valid"))
+                    h_valid = len(h_raw) <= 2 or (is_valid_syllable_pattern(h_raw) and get_word_in_cache(h_raw, lang=lang).get("is_valid"))
 
                     if v_valid and h_valid:
                         await self.finalize_pending_group(v_group_id, 'v')
@@ -497,13 +497,13 @@ class GameRoom:
                 h_word = self._get_word_at(x, y, 'h')
                 v_word = self._get_word_at(x, y, 'v')
 
-                if len(h_word) > 1 and get_word_in_cache(h_word, lang=lang).get("is_valid"):
-                    if len(v_word) == 1 or get_word_in_cache(v_word, lang=lang).get("is_valid"):
+                if len(h_word) > 2 and get_word_in_cache(h_word, lang=lang).get("is_valid"):
+                    if len(v_word) <= 2 or get_word_in_cache(v_word, lang=lang).get("is_valid"):
                         await self.finalize_pending_group(h_group_id, 'h')
                         finalized_h = True
 
-                if len(v_word) > 1 and get_word_in_cache(v_word, lang=lang).get("is_valid"):
-                    if len(h_word) == 1 or get_word_in_cache(h_word, lang=lang).get("is_valid"):
+                if len(v_word) > 2 and get_word_in_cache(v_word, lang=lang).get("is_valid"):
+                    if len(h_word) <= 2 or get_word_in_cache(h_word, lang=lang).get("is_valid"):
                         await self.finalize_pending_group(v_group_id, 'v')
                         finalized_v = True
 
@@ -569,7 +569,7 @@ class GameRoom:
         lang = self.settings.get("lang", "en")
         
         # For Korean, validate jamo pattern and compose before dictionary lookup
-        if lang == 'ko' and len(word) > 1:
+        if lang == 'ko' and len(word) > 2:
             # word is already composed by _get_word_at, but we have raw jamos on board
             # Extract raw jamos from board
             raw_jamos = ""
@@ -590,7 +590,7 @@ class GameRoom:
                 logger.debug(f"Korean word validation: {raw_jamos} -> {composed_word} = {result.get('is_valid')}")
         else:
             # English or single character
-            result = get_word_in_cache(word, lang=lang) if len(word) > 1 else {"is_valid": False}
+            result = get_word_in_cache(word, lang=lang) if len(word) > 2 else {"is_valid": False}
 
         # 3. 모든 타일에 대해 교차 방향 단어도 유효한지 확인 (Scrabble Rule)
         # 단, 이미 보드에 확정된 타일들로만 이루어진 cross word는 검증 건너뛰기
@@ -605,7 +605,7 @@ class GameRoom:
                     continue
                     
                 cross_word = self._get_word_at(bx, by, cross_direction)
-                if len(cross_word) > 1:
+                if len(cross_word) > 2:
                     # Check if cross word contains any pending tiles
                     # Find cross word coordinates
                     cross_start_x, cross_start_y = bx, by

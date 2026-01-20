@@ -228,6 +228,53 @@ def is_valid_syllable_pattern(jamos: str) -> bool:
     return syllable_count > 0
 
 
+def count_syllables(jamos: str) -> int:
+    """
+    Count the number of syllables in a jamo sequence.
+    
+    Args:
+        jamos: Jamo string to count syllables from
+        
+    Returns:
+        Number of complete syllables, or 0 if invalid pattern
+        
+    Example:
+        count_syllables('ㅅㅏ') -> 1 (사)
+        count_syllables('ㅅㅏㄱㅘ') -> 2 (사과)
+        count_syllables('ㅎㅏㄴㄱㅡㄹ') -> 2 (한글)
+    """
+    if not jamos:
+        return 0
+    
+    i = 0
+    syllable_count = 0
+    
+    while i < len(jamos):
+        # Must start with 초성
+        if i >= len(jamos) or jamos[i] not in ALL_CHOSUNG:
+            return 0
+        i += 1
+        
+        # Must have 중성
+        if i >= len(jamos) or jamos[i] not in ALL_JUNGSUNG:
+            return 0
+        i += 1
+        
+        # Optional 종성
+        if i < len(jamos) and jamos[i] in ALL_JONGSUNG:
+            # Check if this could be 초성 of next syllable
+            if i + 1 < len(jamos) and jamos[i + 1] in ALL_JUNGSUNG:
+                # This consonant starts next syllable, don't consume
+                pass
+            else:
+                # Consume as 종성
+                i += 1
+        
+        syllable_count += 1
+    
+    return syllable_count
+
+
 def get_jamo_type(jamo: str) -> str:
     """
     Get the type of a jamo character.
