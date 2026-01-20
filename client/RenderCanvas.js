@@ -425,33 +425,51 @@ canvas.addEventListener('mousedown', (e) => {
 });
 
 window.addEventListener('mouseup', (e) => {
-  if (isDraggingFromRack) {
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    if (isDraggingFromRack) {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
 
-    // Convert release point to world coordinates
-    const worldPos = screenToWorld(mouseX, mouseY, rect);
-    const letter = rackState.tiles[rackState.draggingIndex];
+        // --- RACK BOUNDS CHECK ---
+        const tileCount = 10;
+        const tileSize = 60;
+        const gap = 12;
+        const totalWidth = (tileCount * tileSize) + ((tileCount - 1) * gap);
+        const startX = (rect.width - totalWidth) / 2;
+        const rackY = rect.height - 100;
+        
+        // Define the sensitive area for the rack (with a little padding)
+        const isOverRack = mouseX >= startX - 20 && 
+                           mouseX <= startX + totalWidth + 20 && 
+                           mouseY >= rackY - 20;
 
-    // Send to Server
-    if (globalWs?.readyState === WebSocket.OPEN) {
-      globalWs.send(JSON.stringify({
-        type: "PLACE",
-        x: worldPos.tileX,
-        y: worldPos.tileY,
-        letter: letter.toUpperCase(),
-        color: getComputedStyle(document.documentElement).getPropertyValue('--user-color') || '#4f46e5',
-        hand_index: rackState.draggingIndex
-      }));
+        if (isOverRack) {
+            // Cancel: Dropped back on the rack
+            console.log("Placement cancelled: Dropped on rack.");
+        } else {
+            // Convert release point to world coordinates
+            const worldPos = screenToWorld(mouseX, mouseY, rect);
+            const letter = rackState.tiles[rackState.draggingIndex];
+
+            // Send to Server ONLY if not over rack
+            if (globalWs?.readyState === WebSocket.OPEN) {
+                globalWs.send(JSON.stringify({
+                    type: "PLACE",
+                    x: worldPos.tileX,
+                    y: worldPos.tileY,
+                    letter: letter.toUpperCase(),
+                    color: getComputedStyle(document.documentElement).getPropertyValue('--user-color') || '#4f46e5',
+                    hand_index: rackState.draggingIndex
+                }));
+            }
+        }
+
+        // Reset dragging state regardless of where it was dropped
+        rackState.draggingIndex = -1;
+        isDraggingFromRack = false;
+        renderCanvas(window.lastKnownState);
     }
-
-    // Reset state
-    rackState.draggingIndex = -1;
-    isDraggingFromRack = false;
-    renderCanvas(window.lastKnownState);
-  }
-  camera.isDragging = false;
+    camera.isDragging = false;
 });
 
 canvas.addEventListener('wheel', (e) => {
