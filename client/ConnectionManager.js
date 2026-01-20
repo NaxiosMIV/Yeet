@@ -35,7 +35,8 @@ const elements = {
   chatInput: document.getElementById("chat-input"),
   chatSend: document.getElementById("chat-send"),
   chatMessages: document.getElementById("chat-messages"),
-  chatIcon: document.getElementById("chat-icon")
+  chatIcon: document.getElementById("chat-icon"),
+  playerNickNameDisplay: document.getElementById("header-user-name"),
 };
 
 function updateLobbyUI(state) {
@@ -395,6 +396,7 @@ const handleLoginSuccess = (name, isAuthorized = false, savedHue = 231) => {
   window.myPlayerName = name;
   elements.userDisplayName.innerText = name;
   elements.authOverlay.style.display = 'none';
+  elements.playerNickNameDisplay.innerText = name;
 
   // 1. APPLY THE LOADED HUE IMMEDIATELY
   if (elements.hueSlider) {
