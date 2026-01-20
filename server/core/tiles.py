@@ -6,6 +6,82 @@ from core.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+
+class TileBag:
+    """
+    Queue-based tile generation system.
+    Pre-generates tiles based on frequency weights and distributes them
+    in a controlled manner to reduce variance in tile distribution.
+    """
+    
+    # Bag size - how many tiles to pre-generate at once
+    BAG_SIZE = 100
+    
+    # Korean jamo distribution ratios (4:4:2 = 40%:40%:20%)
+    CHO_RATIO = 0.4
+    JUNG_RATIO = 0.4
+    JONG_RATIO = 0.2
+    
+    def __init__(self, lang: str = 'en'):
+        self.lang = lang
+        self.bag: List[str] = []
+        self._fill_bag()
+    
+    def _fill_bag(self):
+        """Fill the bag with weighted tiles based on language."""
+        if self.lang == 'ko':
+            self._fill_korean_bag()
+        else:
+            self._fill_english_bag()
+        
+        # Shuffle the bag
+        random.shuffle(self.bag)
+        logger.debug(f"TileBag filled with {len(self.bag)} tiles for lang={self.lang}")
+    
+    def _fill_korean_bag(self):
+        """Fill bag with Korean jamos in 4:4:2 ratio."""
+        weights = load_korean_weights()
+        
+        cho_count = int(self.BAG_SIZE * self.CHO_RATIO)
+        jung_count = int(self.BAG_SIZE * self.JUNG_RATIO)
+        jong_count = self.BAG_SIZE - cho_count - jung_count
+        
+        # Generate 초성 tiles
+        cho_jamos = list(weights['chosung'].keys())
+        cho_weights = list(weights['chosung'].values())
+        self.bag.extend(random.choices(cho_jamos, weights=cho_weights, k=cho_count))
+        
+        # Generate 중성 tiles
+        jung_jamos = list(weights['jungsung'].keys())
+        jung_weights = list(weights['jungsung'].values())
+        self.bag.extend(random.choices(jung_jamos, weights=jung_weights, k=jung_count))
+        
+        # Generate 종성 tiles
+        jong_jamos = list(weights['jongsung'].keys())
+        jong_weights = list(weights['jongsung'].values())
+        self.bag.extend(random.choices(jong_jamos, weights=jong_weights, k=jong_count))
+    
+    def _fill_english_bag(self):
+        """Fill bag with English letters based on frequency."""
+        letters = list(LETTER_WEIGHTS.keys())
+        weights = list(LETTER_WEIGHTS.values())
+        self.bag = random.choices(letters, weights=weights, k=self.BAG_SIZE)
+    
+    def draw(self, count: int) -> List[str]:
+        """Draw specified number of tiles from the bag."""
+        drawn = []
+        for _ in range(count):
+            if not self.bag:
+                self._fill_bag()
+            drawn.append(self.bag.pop())
+        
+        logger.debug(f"Drew {count} tiles from bag, {len(self.bag)} remaining")
+        return drawn
+    
+    def peek_remaining(self) -> int:
+        """Get number of remaining tiles in the bag."""
+        return len(self.bag)
+
 # English Letter Frequency (approximate percentage)
 LETTER_WEIGHTS = {
     'E': 12.02, 'T': 9.10, 'A': 8.12, 'O': 7.68, 'I': 7.31, 'N': 6.95,

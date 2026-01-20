@@ -469,14 +469,17 @@ function joinGame(room, name) {
       return;
     }
 
-
-    if (data.type === "UPDATE" || data.type === "TILE_REMOVED") {
-      window.lastKnownState = data;
+    if (data.type === "TILE_REMOVED") {
+      // TILE_REMOVED only contains tiles to remove, not full state
+      // Don't overwrite lastKnownState here - UPDATE message will provide the correct state
       import("./RenderCanvas.js").then(m => {
-        if (data.type === "TILE_REMOVED") {
-          m.triggerRemovalAnimation(data.tiles);
-        }
+        m.triggerRemovalAnimation(data.tiles);
       });
+      return; // Don't process further - wait for UPDATE with correct state
+    }
+
+    if (data.type === "UPDATE") {
+      window.lastKnownState = data;
     }
 
     if (!data.state) return;
@@ -514,19 +517,8 @@ function joinGame(room, name) {
       }
     }
 
-    // 4. Trigger Animations or Rendering
-    if (data.type === "TILE_REMOVED") {
-      // We import dynamically to ensure the animation loop starts
-      import("./RenderCanvas.js").then(m => {
-        // data.tiles should contain the list of bricks just destroyed
-        m.triggerRemovalAnimation(data.tiles);
-
-        renderCanvas(window.lastKnownState);
-      });
-    } else {
-      // Standard refresh for all other updates (PLACE, UPDATE, INIT)
-      renderCanvas(window.lastKnownState);
-    }
+    // 4. Trigger Rendering for standard updates
+    renderCanvas(window.lastKnownState);
   };
 
   globalWs.onclose = () => {
