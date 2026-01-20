@@ -438,8 +438,6 @@ canvas.addEventListener('mousemove', (e) => {
         const distToDestroy = Math.hypot(mouseX - buttonsX, mouseY - destroyY);
         rackState.isHoveringDestroy = distToDestroy < 25;
         
-        // Change cursor while dragging over trash
-        canvas.style.cursor = rackState.isHoveringDestroy ? 'copy' : 'grabbing';
     } 
     else if (camera.isDragging) {
         camera.wasDragging = true;
@@ -448,16 +446,6 @@ canvas.addEventListener('mousemove', (e) => {
         camera.y -= (e.clientY - camera.lastMouseY) * factor;
         camera.lastMouseX = e.clientX;
         camera.lastMouseY = e.clientY;
-        canvas.style.cursor = 'grabbing';
-    } 
-    else {
-        // Handle cursor for Reroll button hover
-        const distToReroll = Math.hypot(mouseX - buttonsX, mouseY - rerollY);
-        if (distToReroll < 20) {
-            canvas.style.cursor = 'pointer';
-        } else {
-            canvas.style.cursor = 'default';
-        }
     }
 
     // Single render call to keep performance high

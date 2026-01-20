@@ -18,6 +18,20 @@
         animation: wobble-pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
       }
     }
+    /* Default body state */
+    body {
+        cursor: url('/static/hand_small_open.png') 32 32, auto;
+    }
+
+    /* Clicking buttons or links */
+    button, a, select, #chat-toggle {
+        cursor: url('/static/hand_small_point.png') 32 32, pointer;
+    }
+
+    /* While holding a click on any button */
+    button:active, a:active {
+        cursor: url('/static/hand_small_close.png') 32 32, grabbing;
+    }
 
     @keyframes wobble-pop {
       0% { transform: scale(0) rotate(-10deg); opacity: 0; }
