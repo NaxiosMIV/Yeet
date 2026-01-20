@@ -8,7 +8,7 @@ from core.words import get_word_in_cache, get_random_word, has_valid_prefix
 from core.tiles import generate_weighted_tiles, TileBag
 from core.database import save_game_result
 from core.logging_config import get_logger
-from core.korean_utils import compose_word, is_valid_syllable_pattern
+from core.korean_utils import compose_word, is_valid_syllable_pattern, count_syllables
 
 logger = get_logger(__name__)
 
@@ -20,6 +20,7 @@ class Player:
         self.score = 0
         self.color = "#6366F1" # Default color
         self.hand: List[Optional[str]] = [None] * 10
+        
         logger.debug(f"Player created: {self.name} ({self.player_id})")
 
     def to_dict(self):
@@ -38,6 +39,10 @@ class GameRoom:
             "max_players": 10,
             "lang": "en" # 'en' or 'ko'
         }
+        self.time_remaining = 0
+        self.total_round_time = 0
+        self.timer_task = None
+
         self.board: Dict[tuple, Dict] = {} # (x, y) -> {'x': x, 'y': y, 'letter': letter, 'color': color}
         self.pending_tiles: List[Dict] = []
         self.players: Dict[str, Player] = {}
@@ -86,9 +91,100 @@ class GameRoom:
                 
         logger.debug(f"Player {player.name} drew {len(drawn)} tiles: {drawn}")
         return drawn
+    
+    def destroy_tile(self, player_id: str, hand_index: int):
+        if player_id not in self.players:
+            return
+        
+        player = self.players[player_id]
+        
+        # Validate index
+        if 0 <= hand_index < len(player.hand):
+            tile_to_destroy = player.hand[hand_index]
+            
+            if tile_to_destroy:
+                # 1. Remove the tile
+                player.hand[hand_index] = None
+                
+                # 2. Optional: Put it back in the bag or just delete it
+                # if self.tile_bag: self.tile_bag.tiles.append(tile_to_destroy)
+                
+                # 3. Draw exactly 1 new tile to replace it
+                self.draw_tiles_for_player(player_id, 1)
+                
+                logger.debug(f"Player {player.name} destroyed tile at index {hand_index}")
+
+    def reroll_hand(self, player_id: str):
+        if player_id not in self.players:
+            return
+        
+        player = self.players[player_id]
+        
+        # 1. Identify valid tiles to return
+        current_tiles = [t for t in player.hand if t is not None]
+        if not current_tiles:
+            return # Nothing to reroll
+
+        # 2. Return tiles to bag and SHUFFLE
+        if self.tile_bag:
+            # Assuming your tile_bag has a list called 'tiles'
+            self.tile_bag.tiles.extend(current_tiles)
+            self.tile_bag.shuffle() # Crucial: don't give them the same tiles back!
+
+        # 3. Reset the hand array 
+        player.hand = [None] * 10
+        
+        # 4. Draw new tiles (draw_tiles_for_player usually fills the first N None slots)
+        self.draw_tiles_for_player(player_id, 10)
+        
+        logger.info(f"Player {player.name} ({player_id}) rerolled their hand.")
+
+    
+    def start_global_timer(self, duration: int):
+        """Starts the main game clock."""
+        if self.timer_task:
+            self.timer_task.cancel()
+        
+        self.time_remaining = duration
+        self.total_round_time = duration
+        
+        logger.debug(f"Timer tick: {self.time_remaining} seconds left in room {self.room_code}")
+        self.timer_task = asyncio.create_task(self._run_timer())
+
+    
+    async def _run_timer(self):
+        try:
+            while self.time_remaining > 0:
+                await asyncio.sleep(1)
+                self.time_remaining -= 1
+                
+                # Broadcast the new state to all players every second
+                await self.broadcast_timer(self.time_remaining)
+                
+                # Optional: Log every 10 seconds to avoid spamming console
+                if self.time_remaining % 10 == 0:
+                    logger.debug(f"Room {self.room_code} timer: {self.time_remaining}s left")
+
+            # When time hits zero
+            logger.info(f"Timer finished for room {self.room_code}")
+            await self.handle_end_game_from_timer()
+            
+        except asyncio.CancelledError:
+            logger.debug(f"Timer cancelled for room {self.room_code}")
+        except Exception as e:
+            logger.error(f"Error in timer loop: {e}")
+        
+    async def handle_end_game_from_timer(self):
+        game_id = await self.handle_end_game()
+        await self.broadcast({
+            "type": "GAME_OVER", 
+            "reason": "TIME_UP",
+            "game_id": game_id, 
+            "state": self.get_state()
+        })
 
     async def broadcast(self, message: dict):
-        logger.debug(f"Broadcasting message type {message.get('type')} to {len(self.players)} players in {self.room_code}")
+        # logger.debug(f"Broadcasting message type {message.get('type')} to {len(self.players)} players in {self.room_code}")
         # 플레이어들에게 메시지 비동기 전송
         tasks = [
             p.websocket.send_json(message) 
@@ -96,6 +192,10 @@ class GameRoom:
         ]
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
+
+    
+    async def broadcast_timer(self, time):
+        await self.broadcast({"type": "TIMER", "time": time})
 
     async def broadcast_state(self):
         await self.broadcast({"type": "UPDATE", "state": self.get_state()})
@@ -476,18 +576,18 @@ class GameRoom:
                 v_raw = self._get_raw_jamos_at(x, y, 'v')
                 
                 # Validate horizontal word
-                if len(h_raw) > 1 and is_valid_syllable_pattern(h_raw):
+                if len(h_raw) > 2 and is_valid_syllable_pattern(h_raw):
                     h_valid = get_word_in_cache(h_raw, lang=lang).get("is_valid")
-                    v_valid = len(v_raw) == 1 or (is_valid_syllable_pattern(v_raw) and get_word_in_cache(v_raw, lang=lang).get("is_valid"))
+                    v_valid = len(v_raw) <= 2 or (is_valid_syllable_pattern(v_raw) and get_word_in_cache(v_raw, lang=lang).get("is_valid"))
                     
                     if h_valid and v_valid:
                         await self.finalize_pending_group(h_group_id, 'h')
                         finalized_h = True
                 
                 # Validate vertical word
-                if len(v_raw) > 1 and is_valid_syllable_pattern(v_raw):
+                if len(v_raw) > 2 and is_valid_syllable_pattern(v_raw):
                     v_valid = get_word_in_cache(v_raw, lang=lang).get("is_valid")
-                    h_valid = len(h_raw) == 1 or (is_valid_syllable_pattern(h_raw) and get_word_in_cache(h_raw, lang=lang).get("is_valid"))
+                    h_valid = len(h_raw) <= 2 or (is_valid_syllable_pattern(h_raw) and get_word_in_cache(h_raw, lang=lang).get("is_valid"))
 
                     if v_valid and h_valid:
                         await self.finalize_pending_group(v_group_id, 'v')
@@ -497,13 +597,13 @@ class GameRoom:
                 h_word = self._get_word_at(x, y, 'h')
                 v_word = self._get_word_at(x, y, 'v')
 
-                if len(h_word) > 1 and get_word_in_cache(h_word, lang=lang).get("is_valid"):
-                    if len(v_word) == 1 or get_word_in_cache(v_word, lang=lang).get("is_valid"):
+                if len(h_word) > 2 and get_word_in_cache(h_word, lang=lang).get("is_valid"):
+                    if len(v_word) <= 2 or get_word_in_cache(v_word, lang=lang).get("is_valid"):
                         await self.finalize_pending_group(h_group_id, 'h')
                         finalized_h = True
 
-                if len(v_word) > 1 and get_word_in_cache(v_word, lang=lang).get("is_valid"):
-                    if len(h_word) == 1 or get_word_in_cache(h_word, lang=lang).get("is_valid"):
+                if len(v_word) > 2 and get_word_in_cache(v_word, lang=lang).get("is_valid"):
+                    if len(h_word) <= 2 or get_word_in_cache(h_word, lang=lang).get("is_valid"):
                         await self.finalize_pending_group(v_group_id, 'v')
                         finalized_v = True
 
@@ -569,7 +669,7 @@ class GameRoom:
         lang = self.settings.get("lang", "en")
         
         # For Korean, validate jamo pattern and compose before dictionary lookup
-        if lang == 'ko' and len(word) > 1:
+        if lang == 'ko' and len(word) > 2:
             # word is already composed by _get_word_at, but we have raw jamos on board
             # Extract raw jamos from board
             raw_jamos = ""
@@ -590,7 +690,7 @@ class GameRoom:
                 logger.debug(f"Korean word validation: {raw_jamos} -> {composed_word} = {result.get('is_valid')}")
         else:
             # English or single character
-            result = get_word_in_cache(word, lang=lang) if len(word) > 1 else {"is_valid": False}
+            result = get_word_in_cache(word, lang=lang) if len(word) > 2 else {"is_valid": False}
 
         # 3. 모든 타일에 대해 교차 방향 단어도 유효한지 확인 (Scrabble Rule)
         # 단, 이미 보드에 확정된 타일들로만 이루어진 cross word는 검증 건너뛰기
@@ -605,7 +705,7 @@ class GameRoom:
                     continue
                     
                 cross_word = self._get_word_at(bx, by, cross_direction)
-                if len(cross_word) > 1:
+                if len(cross_word) > 2:
                     # Check if cross word contains any pending tiles
                     # Find cross word coordinates
                     cross_start_x, cross_start_y = bx, by
@@ -751,34 +851,10 @@ class GameRoom:
         room_manager.remove_room(self.room_code)
         logger.info(f"Room {self.room_code} cleaned up and removed.")
 
-    def start_timer(self, duration: int):
-        """방 전체 타이머를 시작합니다."""
-        if self.room_timer_task:
-            self.room_timer_task.cancel()
-        
-        self.duration = duration
-        self.start_time = time.time()
-        self.room_timer_task = asyncio.create_task(self._run_timer(duration))
-        logger.info(f"Room timer started for {self.room_code}: {duration}s")
-
     def update_settings(self, settings: dict):
         """방 설정을 업데이트합니다."""
         self.settings.update(settings)
         logger.info(f"Room settings updated for {self.room_code}: {self.settings}")
-
-    async def _run_timer(self, duration: int):
-        try:
-            await asyncio.sleep(duration)
-            logger.info(f"Timer expired for room {self.room_code}. Finalizing game.")
-            game_id = await self.handle_end_game()
-            await self.broadcast({
-                "type": "GAME_OVER",
-                "game_id": game_id,
-                "state": self.get_state(),
-                "reason": "TIMER_EXPIRED"
-            })
-        except asyncio.CancelledError:
-            logger.debug(f"Room timer for {self.room_code} cancelled.")
 
 class RoomManager:
     def __init__(self):

@@ -53,8 +53,15 @@ async def handle_websocket(ws: WebSocket):
             
             if data["type"] == "START_GAME":
                 if is_host:
+                    countdown_seconds = 3
+                    await room.broadcast({
+                        "type": "GAME_START_COUNTDOWN", 
+                        "seconds": countdown_seconds
+                    })
+                    await asyncio.sleep(countdown_seconds + 0.5)
                     room.start_match()
                     await room.broadcast({"type": "GAME_STARTED"})
+                    room.start_global_timer(300)
                     await room.broadcast_state()
                 else:
                     await ws.send_json({"type": "ERROR", "message": "Only the host can start."})
@@ -96,6 +103,16 @@ async def handle_websocket(ws: WebSocket):
                         "senderId": user_uuid,
                         "message": message
                     })
+            elif data["type"] == "REROLL_HAND":
+                room.reroll_hand(user_uuid)
+                await room.broadcast_state()
+                
+            elif data["type"] == "DESTROY_TILE":
+                hand_index = data.get("hand_index")
+                if hand_index is not None:
+                    room.destroy_tile(user_uuid, hand_index)
+                    # Always broadcast state so the rack updates visually
+                    await room.broadcast_state()
 
             elif data["type"] == "END_GAME":
                 game_id = await room.handle_end_game()
