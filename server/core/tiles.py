@@ -128,7 +128,7 @@ def generate_weighted_tiles(count: int, lang: str = 'en') -> List[str]:
         # Determine distribution: ~40% 초성, ~40% 중성, ~20% 종성
         # This ensures players can form syllables (need cho+jung, optional jong)
         cho_count = int(count * 0.4)
-        jung_count = int(count * 0.4)
+        jung_count = int(count * 0.45)
         jong_count = count - cho_count - jung_count
         
         logger.debug(f"cho_count: {cho_count}, jung_count: {jung_count}, jong_count: {jong_count}")
