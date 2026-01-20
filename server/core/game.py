@@ -4,10 +4,11 @@ import time
 import asyncio
 import uuid
 import random
-from core.words import get_word_in_cache, get_random_word
+from core.words import get_word_in_cache, get_random_word, has_valid_prefix
 from core.tiles import generate_weighted_tiles
 from core.database import save_game_result
 from core.logging_config import get_logger
+from core.korean_utils import compose_word, is_valid_syllable_pattern
 
 logger = get_logger(__name__)
 
@@ -34,7 +35,8 @@ class GameRoom:
         self.room_code = room_code
         self.settings = {
             "mode": "classic",
-            "max_players": 10
+            "max_players": 10,
+            "lang": "en" # 'en' or 'ko'
         }
         self.board: Dict[tuple, Dict] = {} # (x, y) -> {'x': x, 'y': y, 'letter': letter, 'color': color}
         self.pending_tiles: List[Dict] = []
@@ -62,7 +64,7 @@ class GameRoom:
             return []
         
         player = self.players[player_id]
-        new_tiles = generate_weighted_tiles(count)
+        new_tiles = generate_weighted_tiles(count, lang=self.settings.get("lang", "en"))
         drawn = []
         
         for tile in new_tiles:
@@ -97,9 +99,10 @@ class GameRoom:
         # Give each player a random 6-10 letter word as starting tiles
         for p_id, player in self.players.items():
             player.hand = [None] * 10 # Reset and fix size
-            word = get_random_word(min_length=6, max_length=10)
+            lang = self.settings.get("lang", "en")
+            word = get_random_word(min_length=6, max_length=10, lang=lang)
             if word:
-                letters = list(word.upper())[:10] # Cap at 10
+                letters = list(word.upper() if lang == 'en' else word)[:10] # Cap at 10
                 for i, letter in enumerate(letters):
                     player.hand[i] = letter
                 logger.debug(f"Player {player.name} starting with word tiles: {word}")
@@ -169,7 +172,32 @@ class GameRoom:
             word += board_dict[(curr_x, curr_y)]
             curr_x += dx
             curr_y += dy
+        
+        # For Korean, compose jamos into syllables for display
+        lang = self.settings.get("lang", "en")
+        if lang == 'ko' and word:
+            word = compose_word(word)
+        
         return word
+
+    def _get_raw_jamos_at(self, x: int, y: int, direction: str) -> str:
+        """Get raw jamo string (without composition) for Korean validation."""
+        dx, dy = (1, 0) if direction == 'h' else (0, 1)
+        board_dict = self._get_combined_board_dict()
+        
+        # Find start
+        curr_x, curr_y = x, y
+        while (curr_x - dx, curr_y - dy) in board_dict:
+            curr_x -= dx
+            curr_y -= dy
+        
+        # Build raw string
+        raw = ""
+        while (curr_x, curr_y) in board_dict:
+            raw += board_dict[(curr_x, curr_y)]
+            curr_x += dx
+            curr_y += dy
+        return raw
 
     def _get_connected_directional_group_ids(self, x: int, y: int, dx: int, dy: int) -> set:
         """지정된 방향(dx, dy)으로 연결된 모든 pending_tile의 group_id를 찾습니다."""
@@ -200,7 +228,8 @@ class GameRoom:
                 return False, "Player not found"
                 
             player = self.players[player_id]
-            letter_upper = letter.upper()
+            lang = self.settings.get("lang", "en")
+            letter_upper = letter.upper() if lang == 'en' else letter
 
             if (x, y) in self.board or \
                any(t for t in self.pending_tiles if t['x'] == x and t['y'] == y):
@@ -227,6 +256,32 @@ class GameRoom:
                         break
                 if not has_adj:
                     return False, "Tile must be adjacent to existing or pending tiles"
+
+            # Prefix validation: Check if the tile placement could lead to valid words
+            # Temporarily add the tile to check prefixes
+            temp_tile = {'x': x, 'y': y, 'letter': letter}
+            self.pending_tiles.append(temp_tile)
+            
+            try:
+                if lang == 'ko':
+                    h_prefix = self._get_raw_jamos_at(x, y, 'h')
+                    v_prefix = self._get_raw_jamos_at(x, y, 'v')
+                else:
+                    h_prefix = self._get_word_at(x, y, 'h')
+                    v_prefix = self._get_word_at(x, y, 'v')
+                
+                # Check horizontal prefix
+                if len(h_prefix) > 1 and not has_valid_prefix(h_prefix, lang):
+                    logger.debug(f"Invalid horizontal prefix: {h_prefix}")
+                    return False, f"No valid word can be formed horizontally"
+                
+                # Check vertical prefix
+                if len(v_prefix) > 1 and not has_valid_prefix(v_prefix, lang):
+                    logger.debug(f"Invalid vertical prefix: {v_prefix}")
+                    return False, f"No valid word can be formed vertically"
+            finally:
+                # Remove temporary tile
+                self.pending_tiles.remove(temp_tile)
 
             # 방향별 그룹 처리
             def process_direction(dx, dy, prefix):
@@ -275,30 +330,51 @@ class GameRoom:
             finalized_h = False
             finalized_v = False
             
-            # 가로 즉시 검증
-            h_word = self._get_word_at(x, y, 'h')
-            v_word = self._get_word_at(x, y, 'v')
+            lang = self.settings.get("lang", "en")
             
-            # 가로 단어가 유효하고, 세로 방향도 유효성(1글자거나 유효단어)을 충족할 때만 즉시 확정
-            if len(h_word) > 1 and get_word_in_cache(h_word).get("is_valid"):
-                if len(v_word) == 1 or get_word_in_cache(v_word).get("is_valid"):
-                    await self.finalize_pending_group(h_group_id, 'h')
-                    finalized_h = True
+            # For Korean, validate using raw jamos
+            if lang == 'ko':
+                h_raw = self._get_raw_jamos_at(x, y, 'h')
+                v_raw = self._get_raw_jamos_at(x, y, 'v')
                 
-            # 세로 즉시 검증 (가로가 이미 확정되었더라도 독립적으로 체크)
-            if len(v_word) > 1 and get_word_in_cache(v_word).get("is_valid"):
-                # 세로 단어가 유효하고, 가로 방향도 유효성을 충족할 때
-                if len(h_word) == 1 or get_word_in_cache(h_word).get("is_valid"):
-                    # 중복 확정 방지: 가로 확정 시 이미 보드에 들어갔을 수 있음
-                    await self.finalize_pending_group(v_group_id, 'v')
-                    finalized_v = True
+                # Validate horizontal word
+                if len(h_raw) > 1 and is_valid_syllable_pattern(h_raw):
+                    h_valid = get_word_in_cache(h_raw, lang=lang).get("is_valid")
+                    v_valid = len(v_raw) == 1 or (is_valid_syllable_pattern(v_raw) and get_word_in_cache(v_raw, lang=lang).get("is_valid"))
+                    
+                    if h_valid and v_valid:
+                        await self.finalize_pending_group(h_group_id, 'h')
+                        finalized_h = True
+                
+                # Validate vertical word
+                if len(v_raw) > 1 and is_valid_syllable_pattern(v_raw):
+                    v_valid = get_word_in_cache(v_raw, lang=lang).get("is_valid")
+                    h_valid = len(h_raw) == 1 or (is_valid_syllable_pattern(h_raw) and get_word_in_cache(h_raw, lang=lang).get("is_valid"))
+
+                    if v_valid and h_valid:
+                        await self.finalize_pending_group(v_group_id, 'v')
+                        finalized_v = True
+            else:
+                # English validation (existing logic)
+                h_word = self._get_word_at(x, y, 'h')
+                v_word = self._get_word_at(x, y, 'v')
+
+                if len(h_word) > 1 and get_word_in_cache(h_word, lang=lang).get("is_valid"):
+                    if len(v_word) == 1 or get_word_in_cache(v_word, lang=lang).get("is_valid"):
+                        await self.finalize_pending_group(h_group_id, 'h')
+                        finalized_h = True
+
+                if len(v_word) > 1 and get_word_in_cache(v_word, lang=lang).get("is_valid"):
+                    if len(h_word) == 1 or get_word_in_cache(h_word, lang=lang).get("is_valid"):
+                        await self.finalize_pending_group(v_group_id, 'v')
+                        finalized_v = True
 
             # 확정되지 않은 방향만 타이머 시작
             if not finalized_h:
                 key = f"h:{h_group_id}"
                 if key in self.group_timers: self.group_timers[key].cancel()
                 self.group_timers[key] = asyncio.create_task(self._wait_and_finalize_group(h_group_id, "h"))
-                
+
             if not finalized_v:
                 key = f"v:{v_group_id}"
                 if key in self.group_timers: self.group_timers[key].cancel()
@@ -308,7 +384,7 @@ class GameRoom:
                  await self.broadcast({"type": "UPDATE", "state": self.get_state()})
             else:
                  await self.broadcast({"type": "UPDATE", "state": self.get_state(), "timer": 3})
-                 
+
             return True, None
 
     async def _wait_and_finalize_group(self, group_id: str, direction: str):
@@ -352,15 +428,39 @@ class GameRoom:
             curr_x += dx
             curr_y += dy
 
-        result = get_word_in_cache(word) if len(word) > 1 else {"is_valid": False}
+        lang = self.settings.get("lang", "en")
         
+        # For Korean, validate jamo pattern and compose before dictionary lookup
+        if lang == 'ko' and len(word) > 1:
+            # word is already composed by _get_word_at, but we have raw jamos on board
+            # Extract raw jamos from board
+            raw_jamos = ""
+            curr_x, curr_y = start_x, start_y
+            while (curr_x, curr_y) in board_dict:
+                raw_jamos += board_dict[(curr_x, curr_y)]
+                curr_x += dx
+                curr_y += dy
+            
+            # Validate jamo pattern
+            if not is_valid_syllable_pattern(raw_jamos):
+                logger.debug(f"Invalid Korean jamo pattern: {raw_jamos}")
+                result = {"is_valid": False}
+            else:
+                # Compose and validate
+                composed_word = compose_word(raw_jamos)
+                result = get_word_in_cache(raw_jamos, lang=lang)  # Dictionary stores jamo keys
+                logger.debug(f"Korean word validation: {raw_jamos} -> {composed_word} = {result.get('is_valid')}")
+        else:
+            # English or single character
+            result = get_word_in_cache(word, lang=lang) if len(word) > 1 else {"is_valid": False}
+
         # 3. 모든 타일에 대해 교차 방향 단어도 유효한지 확인 (Scrabble Rule)
         if result.get("is_valid"):
             cross_direction = 'v' if direction == 'h' else 'h'
             for bx, by in word_coords:
                 cross_word = self._get_word_at(bx, by, cross_direction)
                 if len(cross_word) > 1:
-                    cross_result = get_word_in_cache(cross_word)
+                    cross_result = get_word_in_cache(cross_word, lang=lang)
                     if not cross_result.get("is_valid"):
                         logger.debug(f"Invalid cross word '{cross_word}' found at ({bx}, {by}) while validating '{word}'")
                         result["is_valid"] = False
@@ -377,8 +477,10 @@ class GameRoom:
                 if (bx, by) in self.board:
                     self.board[(bx, by)]['color'] = new_color
 
-            # B. 신규 대기 타일들을 보드로 이동 (place_tile 내에서 color 적용)
             # B. 신규 대기 타일들을 보드로 이동
+            # Track players who placed tiles for tile replenishment
+            players_to_replenish = {}
+            
             for gt in group_tiles:
                 # 중복 방지: 이미 보드에 있는 타일인지 확인
                 if (gt['x'], gt['y']) in self.board:
@@ -388,8 +490,12 @@ class GameRoom:
                 if self.place_tile(gt['x'], gt['y'], gt['letter'], gt['player_id'], 10, new_color, consume_hand=False):
                     if gt['player_id'] in self.players:
                         self.players[gt['player_id']].score += result['score'] // len(group_tiles)
-                        # 보충
-                        self.draw_tiles_for_player(gt['player_id'], 1)
+                        # Track player for tile replenishment (count tiles placed)
+                        players_to_replenish[gt['player_id']] = players_to_replenish.get(gt['player_id'], 0) + 1
+            
+            # Replenish tiles once per player
+            for player_id, tile_count in players_to_replenish.items():
+                self.draw_tiles_for_player(player_id, tile_count)
 
             # pending_tiles 정리 (Broadcasting 전에 수행해야 정확한 상태가 전달됨)
             self.pending_tiles = [pt for pt in self.pending_tiles if (pt['x'], pt['y']) not in self.board]

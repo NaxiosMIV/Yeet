@@ -37,7 +37,14 @@ export function triggerRemovalAnimation(tiles) {
   });
 
   // Force an immediate start
-  requestAnimationFrame(animationLoop);
+  ensureAnimationLoop();
+}
+
+let isLoopRunning = false;
+export function ensureAnimationLoop() {
+  if (isLoopRunning) return;
+  isLoopRunning = true;
+  animationLoop();
 }
 
 function animationLoop() {
@@ -59,6 +66,8 @@ function animationLoop() {
 
   if (hasRemoval || hasArrival) {
     requestAnimationFrame(animationLoop);
+  } else {
+    isLoopRunning = false;
   }
 }
 
@@ -147,10 +156,14 @@ function render_rack(ctx, rect, userColor) {
     if (anim) {
       const elapsed = performance.now() - anim.startTime;
       const progress = Math.min(elapsed / anim.duration, 1);
-      // Ease out back
-      const c = 1.70158;
-      const ease = 1 + (c + 1) * Math.pow(progress - 1, 3) + c * Math.pow(progress - 1, 2);
-      scale = ease;
+
+      // Stronger "Pop" Effect (Overshoot)
+      // progress 0-1 matches scale 0-1.2-1.0
+      if (progress < 0.7) {
+        scale = (progress / 0.7) * 1.2;
+      } else {
+        scale = 1.2 - ((progress - 0.7) / 0.3) * 0.2;
+      }
       opacity = progress;
     }
 

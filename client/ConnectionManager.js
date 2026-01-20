@@ -48,6 +48,8 @@ function updateLobbyUI(state) {
   // Elements for toggling
   const modeSelect = document.getElementById("lobby-settings-mode");
   const modeText = document.getElementById("lobby-mode-text");
+  const langSelect = document.getElementById("lobby-settings-lang");
+  const langText = document.getElementById("lobby-lang-text");
 
   if (isHost) {
     // HOST VIEW: Show the interactive dropdown and start button
@@ -56,6 +58,9 @@ function updateLobbyUI(state) {
 
     modeSelect.classList.remove("hidden");
     modeText.classList.add("hidden");
+
+    langSelect.classList.remove("hidden");
+    langText.classList.add("hidden");
   } else {
     // GUEST VIEW: Show read-only text and waiting message
     elements.lobbyStartBtn.classList.add("hidden");
@@ -67,6 +72,12 @@ function updateLobbyUI(state) {
     // Sync the text with whatever the host has currently selected (from state)
     const currentMode = state.settings?.mode || 'classic';
     modeText.innerText = currentMode.charAt(0).toUpperCase() + currentMode.slice(1);
+
+    langSelect.classList.add("hidden");
+    langText.classList.remove("hidden");
+
+    const currentLang = state.settings?.lang || 'en';
+    langText.innerText = currentLang === 'ko' ? '한국어' : 'English';
   }
 
   // Render player list...
@@ -151,6 +162,16 @@ document.getElementById("lobby-settings-mode").onchange = (e) => {
     globalWs.send(JSON.stringify({
       type: "UPDATE_SETTINGS",
       settings: { mode: e.target.value }
+    }));
+  }
+};
+
+document.getElementById("lobby-settings-lang").onchange = (e) => {
+  // Send language change to server
+  if (globalWs?.readyState === WebSocket.OPEN) {
+    globalWs.send(JSON.stringify({
+      type: "UPDATE_SETTINGS",
+      settings: { lang: e.target.value }
     }));
   }
 };
@@ -478,7 +499,7 @@ function joinGame(room, name) {
             rackState.arrivalAnimations.push({
               index: idx,
               startTime: performance.now(),
-              duration: 500
+              duration: 300 // Snappier pop
             });
           }
         });
@@ -487,8 +508,7 @@ function joinGame(room, name) {
         // Ensure animation loop is running if animations exist
         if (rackState.arrivalAnimations.length > 0) {
           import("./RenderCanvas.js").then(m => {
-            // Just trigger a re-render/loop start check
-            renderCanvas(window.lastKnownState);
+            m.ensureAnimationLoop();
           });
         }
       }

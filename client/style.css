@@ -179,8 +179,9 @@ pre {
 
 /* Chat Widget Specific Styles */
 #chat-container.expanded {
-  scale: 1;
-  opacity: 1;
+  scale: 1 !important;
+  opacity: 1 !important;
+  pointer-events: auto;
 }
 
 .chat-message {

@@ -19,9 +19,11 @@ async def init_db():
         # Make dictionary table
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS dictionary (
-                word TEXT PRIMARY KEY,
+                word TEXT,
+                lang TEXT DEFAULT 'en',
                 length INTEGER,
-                score INTEGER
+                score INTEGER,
+                PRIMARY KEY (word, lang)
             );
         """)
         # Make users table
