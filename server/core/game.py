@@ -60,6 +60,7 @@ class GameRoom:
         self.start_time: Optional[float] = None
         self.lock = asyncio.Lock()
         self.tile_bag: Optional[TileBag] = None  # Initialized on game start
+        self.penalty_cooldowns: Dict[str, float] = {}  # player_id -> last_penalty_time
 
     def update_settings(self, settings: dict):
         if "mode" in settings:
@@ -379,10 +380,11 @@ class GameRoom:
             board_dict[(t['x'], t['y'])] = t['letter']
         return board_dict
 
-    def _get_word_at(self, x: int, y: int, direction: str) -> str:
+    def _get_word_at(self, x: int, y: int, direction: str, board_dict: dict = None) -> str:
         """지정된 좌표(x, y)를 포함하는 단어를 추출합니다."""
         dx, dy = (1, 0) if direction == 'h' else (0, 1)
-        board_dict = self._get_combined_board_dict()
+        if board_dict is None:
+            board_dict = self._get_combined_board_dict()
         
         # 선형적으로 단어의 시작 찾기
         curr_x, curr_y = x, y
@@ -403,10 +405,11 @@ class GameRoom:
         
         return word
 
-    def _get_raw_jamos_at(self, x: int, y: int, direction: str) -> str:
+    def _get_raw_jamos_at(self, x: int, y: int, direction: str, board_dict: dict = None) -> str:
         """Get raw jamo string (without composition) for Korean validation."""
         dx, dy = (1, 0) if direction == 'h' else (0, 1)
-        board_dict = self._get_combined_board_dict()
+        if board_dict is None:
+            board_dict = self._get_combined_board_dict()
         
         # Find start
         curr_x, curr_y = x, y
@@ -589,35 +592,74 @@ class GameRoom:
                 v_raw = self._get_raw_jamos_at(x, y, 'v')
                 
                 # Validate horizontal word
-                if len(h_raw) > 2 and is_valid_syllable_pattern(h_raw):
-                    h_valid = get_word_in_cache(h_raw, lang=lang).get("is_valid")
-                    v_valid = len(v_raw) <= 2 or (is_valid_syllable_pattern(v_raw) and get_word_in_cache(v_raw, lang=lang).get("is_valid"))
+                h_result = None
+                v_result = None
+                
+                if len(h_raw) >= 2 and is_valid_syllable_pattern(h_raw):
+                    h_result = get_word_in_cache(h_raw, lang=lang)
+                    h_valid = h_result.get("is_valid")
+                    
+                    # Need v_result for cross-validation check
+                    if len(v_raw) >= 2 and is_valid_syllable_pattern(v_raw):
+                        v_result = get_word_in_cache(v_raw, lang=lang)
+                        v_valid = v_result.get("is_valid")
+                    else:
+                        v_valid = len(v_raw) < 2
                     
                     if h_valid and v_valid:
-                        await self.finalize_pending_group(h_group_id, 'h')
+                        await self.finalize_pending_group(h_group_id, 'h', trigger_tile=placed_tile, pre_result=h_result)
                         finalized_h = True
                 
                 # Validate vertical word
-                if len(v_raw) > 2 and is_valid_syllable_pattern(v_raw):
-                    v_valid = get_word_in_cache(v_raw, lang=lang).get("is_valid")
-                    h_valid = len(h_raw) <= 2 or (is_valid_syllable_pattern(h_raw) and get_word_in_cache(h_raw, lang=lang).get("is_valid"))
+                if len(v_raw) >= 2 and is_valid_syllable_pattern(v_raw):
+                    # Reuse v_result if already calculated
+                    if v_result is None:
+                        v_result = get_word_in_cache(v_raw, lang=lang)
+                    
+                    v_valid = v_result.get("is_valid")
+                    
+                    # Reuse h_result if already calculated
+                    if h_result is None and len(h_raw) >= 2 and is_valid_syllable_pattern(h_raw):
+                        h_result = get_word_in_cache(h_raw, lang=lang)
+                    
+                    h_valid = h_result.get("is_valid") if h_result else len(h_raw) < 2
 
                     if v_valid and h_valid:
-                        await self.finalize_pending_group(v_group_id, 'v')
+                        await self.finalize_pending_group(v_group_id, 'v', trigger_tile=placed_tile, pre_result=v_result)
                         finalized_v = True
             else:
                 # English validation (existing logic)
                 h_word = self._get_word_at(x, y, 'h')
                 v_word = self._get_word_at(x, y, 'v')
+                
+                h_result = None
+                v_result = None
 
-                if len(h_word) > 2 and get_word_in_cache(h_word, lang=lang).get("is_valid"):
-                    if len(v_word) <= 2 or get_word_in_cache(v_word, lang=lang).get("is_valid"):
-                        await self.finalize_pending_group(h_group_id, 'h')
+                if len(h_word) >= 2:
+                    h_result = get_word_in_cache(h_word, lang=lang)
+                    h_valid = h_result.get("is_valid")
+                    
+                    if len(v_word) >= 2:
+                        v_result = get_word_in_cache(v_word, lang=lang)
+                        v_valid = v_result.get("is_valid")
+                    else:
+                        v_valid = len(v_word) < 2
+                    
+                    if h_valid and v_valid:
+                        await self.finalize_pending_group(h_group_id, 'h', trigger_tile=placed_tile, pre_result=h_result)
                         finalized_h = True
 
-                if len(v_word) > 2 and get_word_in_cache(v_word, lang=lang).get("is_valid"):
-                    if len(h_word) <= 2 or get_word_in_cache(h_word, lang=lang).get("is_valid"):
-                        await self.finalize_pending_group(v_group_id, 'v')
+                if len(v_word) >= 2:
+                    if v_result is None:
+                        v_result = get_word_in_cache(v_word, lang=lang)
+                    v_valid = v_result.get("is_valid")
+                    
+                    if h_result is None and len(h_word) >= 2:
+                        h_result = get_word_in_cache(h_word, lang=lang)
+                    h_valid = h_result.get("is_valid") if h_result else len(h_word) < 2
+                    
+                    if v_valid and h_valid:
+                        await self.finalize_pending_group(v_group_id, 'v', trigger_tile=placed_tile, pre_result=v_result)
                         finalized_v = True
 
             # 확정되지 않은 방향만 타이머 시작
@@ -651,20 +693,31 @@ class GameRoom:
             if self.group_timers.get(key) == asyncio.current_task():
                 del self.group_timers[key]
 
-    async def finalize_pending_group(self, group_id: str, direction: str):
+    async def finalize_pending_group(self, group_id: str, direction: str, trigger_tile: dict = None, pre_result: dict = None):
         """특정 방향 그룹을 검증하고 처리합니다."""
         dir_key = 'h_group_id' if direction == 'h' else 'v_group_id'
         group_tiles = [t for t in self.pending_tiles if t.get(dir_key) == group_id]
+        
+        # If trigger_tile is provided (immediate validation), ensure it's included
+        # even if it was already moved to board by another direction's validation
+        if trigger_tile and trigger_tile not in group_tiles:
+            if trigger_tile.get(dir_key) == group_id:
+                group_tiles.append(trigger_tile)
         
         if not group_tiles: return
 
         t = group_tiles[0]
         dx, dy = (1, 0) if direction == 'h' else (0, 1)
-        board_dict = self._get_combined_board_dict()
+        
+        # Create a board dict that ONLY includes confirmed board tiles + THIS group's tiles
+        # This prevents dependencies on OTHER pending groups during finalization
+        group_board_dict = {pos: t['letter'] for pos, t in self.board.items()}
+        for gt in group_tiles:
+            group_board_dict[(gt['x'], gt['y'])] = gt['letter']
         
         # 1. 단어의 시작점 찾기
         curr_x, curr_y = t['x'], t['y']
-        while (curr_x - dx, curr_y - dy) in board_dict:
+        while (curr_x - dx, curr_y - dy) in group_board_dict:
             curr_x -= dx
             curr_y -= dy
         
@@ -673,22 +726,23 @@ class GameRoom:
         # 2. 단어 문자열 구성 및 좌표 리스트 생성
         word = ""
         word_coords = [] # 단어를 구성하는 모든 좌표 (기존 + 신규)
-        while (curr_x, curr_y) in board_dict:
-            word += board_dict[(curr_x, curr_y)]
+        while (curr_x, curr_y) in group_board_dict:
+            word += group_board_dict[(curr_x, curr_y)]
             word_coords.append((curr_x, curr_y))
             curr_x += dx
             curr_y += dy
 
         lang = self.settings.get("lang", "en")
         
-        # For Korean, validate jamo pattern and compose before dictionary lookup
-        if lang == 'ko' and len(word) > 2:
+        if pre_result:
+            result = pre_result
+        elif lang == 'ko' and len(word) >= 2:
             # word is already composed by _get_word_at, but we have raw jamos on board
-            # Extract raw jamos from board
+            # Extract raw jamos from board (using group_board_dict)
             raw_jamos = ""
             curr_x, curr_y = start_x, start_y
-            while (curr_x, curr_y) in board_dict:
-                raw_jamos += board_dict[(curr_x, curr_y)]
+            while (curr_x, curr_y) in group_board_dict:
+                raw_jamos += group_board_dict[(curr_x, curr_y)]
                 curr_x += dx
                 curr_y += dy
             
@@ -703,7 +757,10 @@ class GameRoom:
                 logger.debug(f"Korean word validation: {raw_jamos} -> {composed_word} = {result.get('is_valid')}")
         else:
             # English or single character
-            result = get_word_in_cache(word, lang=lang) if len(word) > 2 else {"is_valid": False}
+            if len(word) >= 2:
+                result = get_word_in_cache(word, lang=lang)
+            else:
+                result = {"is_valid": False, "skip_penalty": True}
 
         # 3. 모든 타일에 대해 교차 방향 단어도 유효한지 확인 (Scrabble Rule)
         # 단, 이미 보드에 확정된 타일들로만 이루어진 cross word는 검증 건너뛰기
@@ -713,34 +770,21 @@ class GameRoom:
             pending_coords = {(pt['x'], pt['y']) for pt in self.pending_tiles}
             
             for bx, by in word_coords:
-                # Skip if this coordinate is not a pending tile (already validated)
-                if (bx, by) not in pending_coords:
+                # Skip if this coordinate is not a group tile (already on board)
+                # Note: group_tiles includes ALL tiles in the current pending group
+                is_group_tile = any(gt['x'] == bx and gt['y'] == by for gt in group_tiles)
+                if not is_group_tile:
                     continue
                     
-                cross_word = self._get_word_at(bx, by, cross_direction)
-                if len(cross_word) > 2:
-                    # Check if cross word contains any pending tiles
-                    # Find cross word coordinates
-                    cross_start_x, cross_start_y = bx, by
-                    while (cross_start_x - cdx, cross_start_y - cdy) in board_dict:
-                        cross_start_x -= cdx
-                        cross_start_y -= cdy
-                    
-                    cross_coords = []
-                    cx, cy = cross_start_x, cross_start_y
-                    while (cx, cy) in board_dict:
-                        cross_coords.append((cx, cy))
-                        cx += cdx
-                        cy += cdy
-                    
-                    # Only validate if cross word contains at least one pending tile
-                    has_pending = any(cc in pending_coords for cc in cross_coords)
-                    if has_pending:
-                        cross_result = get_word_in_cache(cross_word, lang=lang)
-                        if not cross_result.get("is_valid"):
-                            logger.debug(f"Invalid cross word '{cross_word}' found at ({bx}, {by}) while validating '{word}'")
-                            result["is_valid"] = False
-                            break
+                cross_word = self._get_word_at(bx, by, cross_direction, board_dict=group_board_dict)
+                if len(cross_word) >= 2:
+                    # Current group always contains the tiles we're validating, 
+                    # so no need to check has_pending (it's always True for a group tile)
+                    cross_result = get_word_in_cache(cross_word, lang=lang)
+                    if not cross_result.get("is_valid"):
+                        logger.debug(f"Invalid cross word '{cross_word}' found at ({bx}, {by}) while validating '{word}'")
+                        result["is_valid"] = False
+                        break
 
         if result.get("is_valid"):
             logger.debug(f"Valid {direction} word: {word}")
@@ -763,17 +807,16 @@ class GameRoom:
             logger.debug(f"Word '{word}' length={word_length}, score={word_score}")
             
             for gt in group_tiles:
-                # 중복 방지: 이미 보드에 있는 타일인지 확인
-                if (gt['x'], gt['y']) in self.board:
-                    continue
-
-                # IMPORTANT: consume_hand=False because it was already consumed in handle_place_tile
-                # Points=0 because score is calculated separately based on word length
-                if self.place_tile(gt['x'], gt['y'], gt['letter'], gt['player_id'], 0, new_color, consume_hand=False):
-                    if gt['player_id'] in self.players:
-                        # Distribute word score among players who placed tiles
-                        self.players[gt['player_id']].score += word_score // len(group_tiles)
-                        # Track player for tile replenishment (count tiles placed)
+                # Place tile returns False if already on board (e.g. from intersecting word)
+                newly_placed = self.place_tile(gt['x'], gt['y'], gt['letter'], gt['player_id'], 0, new_color, consume_hand=False)
+                
+                if gt['player_id'] in self.players:
+                    # Award points regardless of whether it was already on board
+                    # as long as it was part of this pending group
+                    self.players[gt['player_id']].score += word_score // len(group_tiles)
+                    
+                    # Only replenish if it was newly placed from pending
+                    if newly_placed:
                         players_to_replenish[gt['player_id']] = players_to_replenish.get(gt['player_id'], 0) + 1
             
             # Replenish tiles once per player
@@ -794,16 +837,27 @@ class GameRoom:
             # Invalid Word Penalty
             penalty_points = 5
             penalized_players = set()
-            for gt in group_tiles:
-                pid = gt['player_id']
-                if pid in self.players:
-                    self.players[pid].score = max(0, self.players[pid].score - penalty_points)
-                    penalized_players.add(pid)
             
-            if penalized_players:
-                logger.info(f"Penalty applied to players {penalized_players} for invalid word: {word}")
-                await self.broadcast({"type": "MODAL", "message": f"Invalid word: {word}. -{penalty_points} points penalty!"})
-
+            # Skip penalty if the word is just a single character (not really an incorrect word, just incomplete)
+            if not result.get("skip_penalty"):
+                current_time = time.time()
+                penalty_cooldown = 5.0  # 5 seconds cooldown between penalties
+                
+                for gt in group_tiles:
+                    pid = gt['player_id']
+                    if pid in self.players:
+                        # Check if player was recently penalized
+                        last_penalty_time = self.penalty_cooldowns.get(pid, 0)
+                        if current_time - last_penalty_time >= penalty_cooldown:
+                            self.players[pid].score = max(0, self.players[pid].score - penalty_points)
+                            penalized_players.add(pid)
+                            self.penalty_cooldowns[pid] = current_time
+                        else:
+                            logger.debug(f"Skipping penalty for {self.players[pid].name} (cooldown active)")
+                
+                if penalized_players:
+                    logger.info(f"Penalty applied to players {penalized_players} for invalid word: {word}")
+                    await self.broadcast({"type": "MODAL", "message": f"Invalid word: {word}. -{penalty_points} points penalty!"})
             # 4. 검증 실패 시 해당 방향 타이머 정보 제거 (현재 로직이 직접 실행 중이므로)
             key = f"{direction}:{group_id}"
             if self.group_timers.get(key) == asyncio.current_task() or \

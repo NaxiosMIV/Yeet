@@ -485,19 +485,22 @@ function joinGame(room, name) {
       // Sync Rack/Hand
       const myPlayer = currentState.players[window.myPlayerId];
       if (myPlayer && myPlayer.hand) {
-        // Detect additions for animation
+        // Detect additions or reroll for animation
+        const isReroll = rackState.fullArrivalPending;
         myPlayer.hand.forEach((newLetter, idx) => {
-          if (newLetter && !rackState.tiles[idx]) {
-            // New tile arrived in this empty slot
+          if (newLetter && (isReroll || !rackState.tiles[idx])) {
+            // New tile arrived in this empty slot OR it's a reroll
             rackState.arrivalAnimations.push({
               index: idx,
-              startTime: performance.now(),
+              startTime: performance.now() + (isReroll ? idx * 50 : 0),
               duration: 800 // Snappy visible pop
             });
           }
         });
 
+        rackState.fullArrivalPending = false;
         rackState.tiles = [...myPlayer.hand];
+
         // Ensure animation loop is running if animations exist
         if (rackState.arrivalAnimations.length > 0) {
           import("./RenderCanvas.js").then(m => {

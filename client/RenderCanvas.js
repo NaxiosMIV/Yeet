@@ -23,7 +23,8 @@ export const rackState = {
   lastTiles: Array(10).fill(null),
   arrivalAnimations: [], // Array of {index, startTime, duration}
   isHoveringDestroy: false,
-  cooldownDuration: 3000
+  cooldownDuration: 3000,
+  fullArrivalPending: false
 };
 
 let removalAnimations = [];
@@ -276,11 +277,14 @@ function render_rack(ctx, rect, userColor) {
       const elapsed = performance.now() - anim.startTime;
       const progress = Math.min(elapsed / anim.duration, 1);
 
-      // Snappy Elastic ease out
-      const c4 = (2 * Math.PI) / 3;
-      scale = progress === 0 ? 0 : progress === 1 ? 1 :
-        Math.pow(2, -10 * progress) * Math.sin((progress * 10 - 0.75) * c4) + 1;
-
+      if (progress < 0) {
+        scale = 0;
+      } else {
+        // Snappy Elastic ease out
+        const c4 = (2 * Math.PI) / 3;
+        scale = progress === 0 ? 0 : progress === 1 ? 1 :
+          Math.pow(2, -10 * progress) * Math.sin((progress * 10 - 0.75) * c4) + 1;
+      }
     }
 
     drawTile(ctx, x, rackY + yOffset, tileSize, letter, false, scale);
@@ -845,7 +849,7 @@ window.addEventListener('mouseup', (e) => {
       if (!rackState.isRerollLocked) {
         if (globalWs?.readyState === WebSocket.OPEN) {
           globalWs.send(JSON.stringify({ type: "REROLL_HAND" }));
-
+          rackState.fullArrivalPending = true;
           triggerRerollCooldown();
         }
       }
