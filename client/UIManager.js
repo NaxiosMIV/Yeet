@@ -17,10 +17,11 @@ export function updateLeaderboard(playersObj) {
       row.id = rowId;
       row.innerHTML = `
         <div class="flex flex-row items-center gap-2">
-          <span class="player-name font-bold text-slate-900 text-md truncate max-w-[80px]"></span>
-          <span class="player-score text-[18px] text-slate-500 font-bold uppercase tracking-tighter"></span>
+          <span class="player-name font-bold text-slate-900 text-[20px] truncate max-w-[130px]"></span>
         </div>
-        <span class="player-rank ml-auto text-lg font-black"></span>
+        
+        <span class="player-score ml-auto text-[14px] text-slate-500 font-bold tracking-tighter"></span>
+        <span class="player-rank text-[20px] font-black"></span>
       `;
       container.appendChild(row);
     }
@@ -31,8 +32,8 @@ export function updateLeaderboard(playersObj) {
     const oldScore = previousScores[player.id] !== undefined ? previousScores[player.id] : player.score;
 
     // Update Text Content
-    row.querySelector('.player-name').textContent = isMe ? 'You' : player.name;
-    row.querySelector('.player-score').textContent = `${player.score} pts`;
+    row.querySelector('.player-name').textContent = isMe ? player.name + '(You)' : player.name;
+    row.querySelector('.player-score').textContent = `${player.score} p`;
     row.querySelector('.player-rank').textContent = `#${index + 1}`;
 
     // Base Classes (Tailwind)
@@ -41,7 +42,6 @@ export function updateLeaderboard(playersObj) {
     row.style.order = index;
 
     // 2. CHECK FOR CHANGE
-    console.log(`Player ${player.name} old score: ${oldScore}, new score: ${player.score}`);
     if (player.score !== oldScore) {
       // Determine colors based on gain/loss
       const flashColor = player.score > oldScore ? '#83ffae' : '#ff8080'; // Light Green or Light Red
