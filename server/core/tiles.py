@@ -12,9 +12,10 @@ class TileBag:
     Standardized to handle Rerolls and Tile Destruction.
     """
     BAG_SIZE = 100
-    CHO_RATIO = 0.4
-    JUNG_RATIO = 0.45
-    JONG_RATIO = 0.15
+    CHO_RATIO = 0.42
+    JUNG_RATIO = 0.46
+    JONG_RATIO = 0.12
+    REFILL_THRESHOLD = 20
     
     def __init__(self, lang: str = 'en'):
         self.lang = lang
@@ -78,8 +79,15 @@ class TileBag:
         """Draw specified number of tiles from the bag."""
         drawn = []
         for _ in range(count):
-            if not self.bag:
+            # Proactive refill: refill if bag is below threshold OR empty
+            if len(self.bag) < self.REFILL_THRESHOLD:
+                logger.debug(f"Bag size ({len(self.bag)}) below threshold ({self.REFILL_THRESHOLD}). Refilling...")
                 self._fill_bag()
+            
+            if not self.bag:
+                # Should not happen with proactive refill, but as safety fallback
+                break
+                
             drawn.append(self.bag.pop())
         
         logger.debug(f"Drew {count} tiles from bag, {len(self.bag)} remaining")
