@@ -13,8 +13,8 @@ class TileBag:
     """
     BAG_SIZE = 100
     CHO_RATIO = 0.4
-    JUNG_RATIO = 0.4
-    JONG_RATIO = 0.2
+    JUNG_RATIO = 0.45
+    JONG_RATIO = 0.15
     
     def __init__(self, lang: str = 'en'):
         self.lang = lang
