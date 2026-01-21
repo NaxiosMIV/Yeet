@@ -1,4 +1,4 @@
-let previousScores = {};
+const previousScores = {};
 
 export function updateLeaderboard(playersObj) {
   const container = document.getElementById("leaderboard");
@@ -15,34 +15,52 @@ export function updateLeaderboard(playersObj) {
     if (!row) {
       row = document.createElement('div');
       row.id = rowId;
-      row.className = "leaderboard-row flex items-center justify-between p-4 rounded-2xl border transition-all duration-500";
+      row.innerHTML = `
+        <div class="flex flex-row items-center gap-2">
+          <span class="player-name font-bold text-slate-900 text-md truncate max-w-[80px]"></span>
+          <span class="player-score text-[18px] text-slate-500 font-bold uppercase tracking-tighter"></span>
+        </div>
+        <span class="player-rank ml-auto text-lg font-black"></span>
+      `;
       container.appendChild(row);
     }
 
-    container.appendChild(row); // Maintain DOM order for flex layout
+    const isMe = String(player.id) === String(window.myPlayerId);
+
+    // 1. Get the old score and cast to Number to be safe
+    const oldScore = previousScores[player.id] !== undefined ? previousScores[player.id] : player.score;
+
+    // Update Text Content
+    row.querySelector('.player-name').textContent = isMe ? 'You' : player.name;
+    row.querySelector('.player-score').textContent = `${player.score} pts`;
+    row.querySelector('.player-rank').textContent = `#${index + 1}`;
+
+    // Base Classes (Tailwind)
+    row.className = `flex items-center gap-3 px-4 py-2 rounded-xl border duration-300 min-w-[140px] ${isMe ? 'bg-indigo-50 border-indigo-200 ring-2 ring-indigo-500/10' : 'bg-white border-slate-200'
+      }`;
     row.style.order = index;
 
-    const isMe = String(player.id) === String(window.myPlayerId);
-    const oldScore = previousScores[player.id] || 0;
-    const isIncrease = player.score > oldScore;
+    // 2. CHECK FOR CHANGE
+    console.log(`Player ${player.name} old score: ${oldScore}, new score: ${player.score}`);
+    if (player.score !== oldScore) {
+      // Determine colors based on gain/loss
+      const flashColor = player.score > oldScore ? '#83ffae' : '#ff8080'; // Light Green or Light Red
 
-    row.className = `leaderboard-row flex items-center justify-between p-4 rounded-2xl border transition-all duration-500 ${
-      isMe ? 'bg-indigo-50 border-indigo-200 ring-1 ring-indigo-500/20' : 'bg-transparent border-transparent'
-    }`;
+      // 3. TRIGGER WEB ANIMATION API
+      row.animate(
+        [
+          { transform: 'scale(1)', backgroundColor: isMe ? '#EEF2FF' : '#FFFFFF' },
+          { transform: 'scale(1.05)', backgroundColor: flashColor, borderColor: player.score > oldScore ? '#10B981' : '#EF4444' },
+          { transform: 'scale(1)', backgroundColor: isMe ? '#EEF2FF' : '#FFFFFF' }
+        ],
+        {
+          duration: 800,
+          fill: 'forwards'
+        }
+      );
+    }
 
-    row.innerHTML = `
-      <div class="flex items-center gap-4">
-        <div class="relative">
-          ${isMe ? '<span class="absolute -top-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>' : ''}
-        </div>
-        <div>
-          <span class="font-bold text-slate-900 block leading-tight">${isMe ? player.name+'(You)' : player.name}</span>
-          <span class="text-[11px] text-slate-500 font-bold uppercase">${player.score} pts</span>
-        </div>
-      </div>
-      <span class="text-xl font-black ${index === 0 ? 'text-indigo-600' : 'text-slate-300'}">#${index + 1}</span>
-    `;
-
+    // 4. IMPORTANT: Update the tracker for THIS player before moving to the next
     previousScores[player.id] = player.score;
   });
 }
