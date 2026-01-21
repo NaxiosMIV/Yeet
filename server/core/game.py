@@ -483,29 +483,30 @@ class GameRoom:
                 if not has_adj:
                     return False, "Tile must be adjacent to existing or pending tiles"
 
-            # Prefix validation: Check if the tile placement could lead to valid words
-            # Temporarily add the tile to check prefixes
+            # Early validation: Check if the tile placement could lead to valid words
+            # Note: has_valid_prefix checks BOTH prefixes and suffixes using BidirectionalTrie
+            # Temporarily add the tile to check substrings
             temp_tile = {'x': x, 'y': y, 'letter': letter}
             self.pending_tiles.append(temp_tile)
             
-            prefix_invalid = False
+            substring_invalid = False
             try:
                 if lang == 'ko':
-                    h_prefix = self._get_raw_jamos_at(x, y, 'h')
-                    v_prefix = self._get_raw_jamos_at(x, y, 'v')
+                    h_substring = self._get_raw_jamos_at(x, y, 'h')
+                    v_substring = self._get_raw_jamos_at(x, y, 'v')
                 else:
-                    h_prefix = self._get_word_at(x, y, 'h')
-                    v_prefix = self._get_word_at(x, y, 'v')
+                    h_substring = self._get_word_at(x, y, 'h')
+                    v_substring = self._get_word_at(x, y, 'v')
                 
-                # Check horizontal prefix
-                if len(h_prefix) > 1 and not has_valid_prefix(h_prefix, lang):
-                    logger.debug(f"Invalid horizontal prefix: {h_prefix}")
-                    prefix_invalid = True
+                # Check horizontal substring
+                if len(h_substring) > 1 and not has_valid_prefix(h_substring, lang):
+                    logger.debug(f"Invalid horizontal substring: {h_substring}")
+                    substring_invalid = True
                 
-                # Check vertical prefix
-                if not prefix_invalid and len(v_prefix) > 1 and not has_valid_prefix(v_prefix, lang):
-                    logger.debug(f"Invalid vertical prefix: {v_prefix}")
-                    prefix_invalid = True
+                # Check vertical substring
+                if not substring_invalid and len(v_substring) > 1 and not has_valid_prefix(v_substring, lang):
+                    logger.debug(f"Invalid vertical substring: {v_substring}")
+                    substring_invalid = True
             finally:
                 # Remove temporary tile
                 self.pending_tiles.remove(temp_tile)
@@ -554,12 +555,12 @@ class GameRoom:
                 idx = player.hand.index(letter_upper)
                 player.hand[idx] = None
 
-            # If prefix is invalid, immediately explode the tile (same animation as finalize failure)
-            if prefix_invalid:
-                # Apply penalty
-                penalty_points = 5
+            # If substring is invalid, immediately explode the tile
+            if substring_invalid:
+                # Apply penalty (1 point for early validation failure)
+                penalty_points = 1
                 player.score = max(0, player.score - penalty_points)
-                logger.info(f"Invalid prefix penalty applied to {player.name}: -{penalty_points}")
+                logger.info(f"Invalid substring penalty applied to {player.name}: -{penalty_points}")
                 
                 # Return tile to hand
                 if hand_index is not None and 0 <= hand_index < len(player.hand):
@@ -834,7 +835,7 @@ class GameRoom:
             await self.broadcast({"type": "MODAL", "message": f"Word completed: {word}"})
         
         else:
-            # Invalid Word Penalty
+            # Invalid Word Penalty (5 points for final word validation failure)
             penalty_points = 5
             penalized_players = set()
             
